@@ -1,13 +1,13 @@
 /*
- * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS), Shanghai Jiao Tong University (SJTU)
- * Licensed under the Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS),
+ * Shanghai Jiao Tong University (SJTU) Licensed under the Mulan PSL v2. You can
+ * use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
  *     http://license.coscl.org.cn/MulanPSL2
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
- * PURPOSE.
- * See the Mulan PSL v2 for more details.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
+ * KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+ * NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE. See the
+ * Mulan PSL v2 for more details.
  */
 
 #include <common/debug.h>
@@ -42,11 +42,11 @@ void *_get_pages(int order, bool is_record)
                 return NULL;
         }
 
-	addr = page_to_virt(page);
+        addr = page_to_virt(page);
 #if ENABLE_MEMORY_USAGE_COLLECTING == ON
-        if(is_record && collecting_switch) {
+        if (is_record && collecting_switch) {
                 record_mem_usage(BUDDY_PAGE_SIZE << order, addr);
-	}
+        }
 #endif
         return addr;
 }
@@ -68,7 +68,7 @@ void _free_pages(void *addr, bool is_revoke_record)
 #if ENABLE_MEMORY_USAGE_COLLECTING == ON
         if (collecting_switch && is_revoke_record) {
                 revoke_mem_usage(addr);
-	}
+        }
 #endif
         buddy_free_pages(page->pool, page);
 }
@@ -118,15 +118,20 @@ void *_kmalloc(size_t size, bool is_record, size_t *real_size)
                 /* Step 1: Allocate in slab for small requests. */
                 /* BLANK BEGIN */
 
+                addr = alloc_in_slab(size, real_size);
+
                 /* BLANK END */
 #if ENABLE_MEMORY_USAGE_COLLECTING == ON
-                if(is_record && collecting_switch) {
+                if (is_record && collecting_switch) {
                         record_mem_usage(*real_size, addr);
-		}
+                }
 #endif
         } else {
                 /* Step 2: Allocate in buddy for large requests. */
                 /* BLANK BEGIN */
+
+                order = size_to_page_order(size);
+                addr = get_pages(order);
 
                 /* BLANK END */
                 /* LAB 2 TODO 3 END */
@@ -166,7 +171,7 @@ void _kfree(void *ptr, bool is_revoke_record)
 #if ENABLE_MEMORY_USAGE_COLLECTING == ON
         if (collecting_switch && is_revoke_record) {
                 revoke_mem_usage(ptr);
-	}
+        }
 #endif
         if (page && page->slab)
                 free_in_slab(ptr);
