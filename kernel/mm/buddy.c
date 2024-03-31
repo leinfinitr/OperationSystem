@@ -189,11 +189,14 @@ struct page *buddy_get_pages(struct phys_mem_pool *pool, int order)
         for (cur_order = order; cur_order < BUDDY_MAX_ORDER; cur_order++) {
                 if (pool->free_lists[cur_order].nr_free > 0) {
                         free_list = pool->free_lists[cur_order].free_list.next;
+                        break;
                 }
         }
         // If doesn't exist free page
-        if(free_list == NULL || cur_order >= BUDDY_MAX_ORDER)
-                return NULL;
+        if (free_list == NULL){
+                goto out;
+        }
+                
         // Get first page
         page = list_entry(free_list, struct page, node);
         // Delete the page from the free list
@@ -206,6 +209,7 @@ struct page *buddy_get_pages(struct phys_mem_pool *pool, int order)
 
         /* BLANK END */
         /* LAB 2 TODO 1 END */
+out:
         unlock(&pool->buddy_lock);
         return page;
 }

@@ -23,6 +23,7 @@ install(TARGETS ${kernel_target} DESTINATION ${CMAKE_INSTALL_PREFIX})
 
 # Set warning level
 list(APPEND _compile_options -Wall)
+list(APPEND _compile_options -g)
 # list(APPEND _compile_options -Werror)
 
 # Generic compile settings
