@@ -1,13 +1,13 @@
 /*
- * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS), Shanghai Jiao Tong University (SJTU)
- * Licensed under the Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS),
+ * Shanghai Jiao Tong University (SJTU) Licensed under the Mulan PSL v2. You can
+ * use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
  *     http://license.coscl.org.cn/MulanPSL2
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
- * PURPOSE.
- * See the Mulan PSL v2 for more details.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
+ * KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+ * NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE. See the
+ * Mulan PSL v2 for more details.
  */
 
 #ifdef CHCORE
@@ -55,7 +55,7 @@ static int __ap_to_vmr_prot(int ap)
         return 0;
 }
 
-#define USER_PTE 0
+#define USER_PTE   0
 #define KERNEL_PTE 1
 
 /*
@@ -63,7 +63,6 @@ static int __ap_to_vmr_prot(int ap)
  */
 static int set_pte_flags(pte_t *entry, vmr_prop_t flags, int kind)
 {
-
         BUG_ON(kind != USER_PTE && kind != KERNEL_PTE);
 
         /*
@@ -301,13 +300,36 @@ int query_in_pgtbl(void *pgtbl, vaddr_t va, paddr_t *pa, pte_t **entry)
          */
         /* BLANK BEGIN */
 
+        BUG_ON(pgtbl == NULL); // pgtbl should not be NULL
+
+        ptp_t *l0_ptp, *l1_ptp, *l2_ptp, *l3_ptp, *phys_page;
+        pte_t *l0_pte, *l1_pte, *l2_pte, *l3_pte;
+        int ret;
+
+        l0_ptp = (ptp_t *)pgtbl;
+        ret = get_next_ptp(l0_ptp, L0, va, &l1_ptp, &l0_pte, false);
+        BUG_ON(ret < 0);
+
+        ret = get_next_ptp(l1_ptp, L1, va, &l2_ptp, &l1_pte, false);
+        BUG_ON(ret < 0);
+
+        ret = get_next_ptp(l2_ptp, L2, va, &l3_ptp, &l2_pte, false);
+        BUG_ON(ret < 0);
+
+        ret = get_next_ptp(l3_ptp, L3, va, &phys_page, &l3_pte, false);
+        if (ret < 0)
+                return -ENOMAPPING;
+
+        *pa = virt_to_phys((vaddr_t)phys_page) + GET_VA_OFFSET_L3(va);
+        *entry = l3_pte;
+
         /* BLANK END */
         /* LAB 2 TODO 4 END */
         return 0;
 }
 
-static int map_range_in_pgtbl_common(void *pgtbl, vaddr_t va, paddr_t pa, size_t len,
-                       vmr_prop_t flags, int kind)
+static int map_range_in_pgtbl_common(void *pgtbl, vaddr_t va, paddr_t pa,
+                                     size_t len, vmr_prop_t flags, int kind)
 {
         /* LAB 2 TODO 4 BEGIN */
         /*
@@ -320,25 +342,66 @@ static int map_range_in_pgtbl_common(void *pgtbl, vaddr_t va, paddr_t pa, size_t
          */
         /* BLANK BEGIN */
 
+        int total_page_num = (len + PAGE_SIZE - 1) / PAGE_SIZE;
+        ptp_t *l0_ptp, *l1_ptp, *l2_ptp, *l3_ptp;
+        pte_t *l0_pte, *l1_pte, *l2_pte;
+        int ret;
+        int pte_index; // index of pte in the last level page table
+        int i;
+
+        BUG_ON(pgtbl == NULL); // pgtbl should not be NULL
+        BUG_ON(va % PAGE_SIZE); // va should be page-aligned
+
+        l0_ptp = (ptp_t *)pgtbl;
+        l1_ptp = NULL;
+        l2_ptp = NULL;
+        l3_ptp = NULL;
+
+        while (total_page_num > 0) {
+                ret = get_next_ptp(l0_ptp, L0, va, &l1_ptp, &l0_pte, true);
+                BUG_ON(ret != 0);
+
+                ret = get_next_ptp(l1_ptp, L1, va, &l2_ptp, &l1_pte, true);
+                BUG_ON(ret != 0);
+
+                ret = get_next_ptp(l2_ptp, L2, va, &l3_ptp, &l2_pte, true);
+                BUG_ON(ret != 0);
+
+                pte_index = GET_L3_INDEX(va);
+                for (i = pte_index; i < PTP_ENTRIES && total_page_num > 0;
+                     i++) {
+                        pte_t new_pte;
+
+                        new_pte.pte = 0;
+                        new_pte.l3_page.is_valid = 1;
+                        new_pte.l3_page.is_page = 1;
+                        new_pte.l3_page.pfn = pa >> PAGE_SHIFT;
+                        set_pte_flags(&new_pte, flags, kind);
+                        l3_ptp->ent[i].pte = new_pte.pte;
+
+                        va += PAGE_SIZE;
+                        pa += PAGE_SIZE;
+                        total_page_num--;
+                }
+        }
+
         /* BLANK END */
         /* LAB 2 TODO 4 END */
         return 0;
 }
 
 /* Map vm range in kernel */
-int map_range_in_pgtbl_kernel(void *pgtbl, vaddr_t va, paddr_t pa,
-		       size_t len, vmr_prop_t flags)
+int map_range_in_pgtbl_kernel(void *pgtbl, vaddr_t va, paddr_t pa, size_t len,
+                              vmr_prop_t flags)
 {
-	return map_range_in_pgtbl_common(pgtbl, va, pa, len, flags,
-                                         KERNEL_PTE);
+        return map_range_in_pgtbl_common(pgtbl, va, pa, len, flags, KERNEL_PTE);
 }
 
 /* Map vm range in user */
-int map_range_in_pgtbl(void *pgtbl, vaddr_t va, paddr_t pa,
-		       size_t len, vmr_prop_t flags)
+int map_range_in_pgtbl(void *pgtbl, vaddr_t va, paddr_t pa, size_t len,
+                       vmr_prop_t flags)
 {
-	return map_range_in_pgtbl_common(pgtbl, va, pa, len, flags,
-                                         USER_PTE);
+        return map_range_in_pgtbl_common(pgtbl, va, pa, len, flags, USER_PTE);
 }
 
 /*
@@ -350,8 +413,7 @@ int map_range_in_pgtbl(void *pgtbl, vaddr_t va, paddr_t pa,
  * 	- zero if lower page table page is not all empty
  * 	- nonzero otherwise
  */
-static int try_release_ptp(ptp_t *high_ptp, ptp_t *low_ptp,
-                                  int index)
+static int try_release_ptp(ptp_t *high_ptp, ptp_t *low_ptp, int index)
 {
         int i;
 
@@ -393,6 +455,40 @@ int unmap_range_in_pgtbl(void *pgtbl, vaddr_t va, size_t len)
          */
         /* BLANK BEGIN */
 
+        int total_page_num = (len + PAGE_SIZE - 1) / PAGE_SIZE;
+        ptp_t *l0_ptp, *l1_ptp, *l2_ptp, *l3_ptp;
+        pte_t *l0_pte, *l1_pte, *l2_pte;
+        int ret;
+        int pte_index; // index of pte in the last level page table
+
+        BUG_ON(pgtbl == NULL); // pgtbl should not be NULL
+        BUG_ON(va % PAGE_SIZE); // va should be page-aligned
+
+        l0_ptp = (ptp_t *)pgtbl;
+        l1_ptp = NULL;
+        l2_ptp = NULL;
+        l3_ptp = NULL;
+
+        while (total_page_num > 0) {
+                ret = get_next_ptp(l0_ptp, L0, va, &l1_ptp, &l0_pte, true);
+                BUG_ON(ret != 0);
+
+                ret = get_next_ptp(l1_ptp, L1, va, &l2_ptp, &l1_pte, true);
+                BUG_ON(ret != 0);
+
+                ret = get_next_ptp(l2_ptp, L2, va, &l3_ptp, &l2_pte, true);
+                BUG_ON(ret != 0);
+
+                pte_index = GET_L3_INDEX(va);
+                for (int i = pte_index; i < PTP_ENTRIES && total_page_num > 0;
+                     i++) {
+                        l3_ptp->ent[i].pte = PTE_DESCRIPTOR_INVALID;
+
+                        va += PAGE_SIZE;
+                        total_page_num--;
+                }
+        }
+
         /* BLANK END */
         /* LAB 2 TODO 4 END */
 
@@ -412,6 +508,40 @@ int mprotect_in_pgtbl(void *pgtbl, vaddr_t va, size_t len, vmr_prop_t flags)
          * Return 0 on success.
          */
         /* BLANK BEGIN */
+
+        int total_page_num = (len + PAGE_SIZE - 1) / PAGE_SIZE;
+        ptp_t *l0_ptp, *l1_ptp, *l2_ptp, *l3_ptp;
+        pte_t *l0_pte, *l1_pte, *l2_pte;
+        int ret;
+        int pte_index; // index of pte in the last level page table
+
+        BUG_ON(pgtbl == NULL); // pgtbl should not be NULL
+        BUG_ON(va % PAGE_SIZE); // va should be page-aligned
+
+        l0_ptp = (ptp_t *)pgtbl;
+        l1_ptp = NULL;
+        l2_ptp = NULL;
+        l3_ptp = NULL;
+
+        while (total_page_num > 0) {
+                ret = get_next_ptp(l0_ptp, L0, va, &l1_ptp, &l0_pte, true);
+                BUG_ON(ret != 0);
+
+                ret = get_next_ptp(l1_ptp, L1, va, &l2_ptp, &l1_pte, true);
+                BUG_ON(ret != 0);
+
+                ret = get_next_ptp(l2_ptp, L2, va, &l3_ptp, &l2_pte, true);
+                BUG_ON(ret != 0);
+
+                pte_index = GET_L3_INDEX(va);
+                for (int i = pte_index; i < PTP_ENTRIES && total_page_num > 0;
+                     i++) {
+                        set_pte_flags(&l3_ptp->ent[i], flags, USER_PTE);
+
+                        va += PAGE_SIZE;
+                        total_page_num--;
+                }
+        }
 
         /* BLANK END */
         /* LAB 2 TODO 4 END */
@@ -454,7 +584,8 @@ void update_pte(pte_t *dest, unsigned int level, struct common_pte_t *src)
                                              AARCH64_MMU_ATTR_PAGE_UXN);
 
                 dest->l3_page.is_valid = src->valid;
-#if !(defined(CHCORE_PLAT_RASPI3) || defined(CHCORE_PLAT_RASPI4) || defined(CHCORE_PLAT_FT2000))
+#if !(defined(CHCORE_PLAT_RASPI3) || defined(CHCORE_PLAT_RASPI4) \
+      || defined(CHCORE_PLAT_FT2000))
                 /**
                  * Some platforms do not support setting AF and DBM
                  * by hardware, so on these platforms we ignored them.

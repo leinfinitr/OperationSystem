@@ -144,7 +144,7 @@ typedef union {
                     SH              : 2,   // Shareability
                     AF              : 1,   // Accesss flag
                     nG              : 1,   // Not global bit
-                    pfn             : 36,
+                    pfn             : 36,  // Page frame number
                     reserved        : 3,
                     DBM             : 1,   // Dirty bit modifier
                     Contiguous      : 1,
