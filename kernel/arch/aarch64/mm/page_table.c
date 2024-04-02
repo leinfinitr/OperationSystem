@@ -308,20 +308,24 @@ int query_in_pgtbl(void *pgtbl, vaddr_t va, paddr_t *pa, pte_t **entry)
 
         l0_ptp = (ptp_t *)pgtbl;
         ret = get_next_ptp(l0_ptp, L0, va, &l1_ptp, &l0_pte, false);
-        BUG_ON(ret < 0);
+        if (ret < 0)
+                return -ENOMAPPING;
 
         ret = get_next_ptp(l1_ptp, L1, va, &l2_ptp, &l1_pte, false);
-        BUG_ON(ret < 0);
+        if (ret < 0)
+                return -ENOMAPPING;
 
         ret = get_next_ptp(l2_ptp, L2, va, &l3_ptp, &l2_pte, false);
-        BUG_ON(ret < 0);
+        if (ret < 0)
+                return -ENOMAPPING;
 
         ret = get_next_ptp(l3_ptp, L3, va, &phys_page, &l3_pte, false);
         if (ret < 0)
                 return -ENOMAPPING;
 
         *pa = virt_to_phys((vaddr_t)phys_page) + GET_VA_OFFSET_L3(va);
-        *entry = l3_pte;
+        if(entry != NULL)
+                *entry = l3_pte;
 
         /* BLANK END */
         /* LAB 2 TODO 4 END */

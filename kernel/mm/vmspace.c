@@ -457,6 +457,33 @@ struct vmregion *find_vmr_for_va(struct vmspace *vmspace, vaddr_t addr)
         /* Hint: Find the corresponding vmr for @addr in @vmspace */
         /* BLANK BEGIN */
 
+        // struct rb_node *node;
+        // struct vmregion *vmr;
+        // struct va_range range;
+
+        // range.start = addr;
+        // range.end = addr;
+
+        // node = rb_search(&vmspace->vmr_tree, (const void *)&range, cmp_vmr_and_va);
+        // if (node == NULL) {
+        //         return NULL;
+        // }
+
+        // vmr = rb_entry(node, struct vmregion, tree_node);
+        // return vmr;
+
+        struct vmregion *vmr;
+        vaddr_t start, end;
+
+        for_each_in_list (
+                vmr, struct vmregion, list_node, &(vmspace->vmr_list)) {
+                start = vmr->start;
+                end = start + vmr->size;
+                if (addr >= start && addr < end)
+                        return vmr;
+        }
+        return NULL;
+
         /* BLANK END */
         /* LAB 2 TODO 6 END */
 }
