@@ -324,7 +324,7 @@ int query_in_pgtbl(void *pgtbl, vaddr_t va, paddr_t *pa, pte_t **entry)
                 return -ENOMAPPING;
 
         *pa = virt_to_phys((vaddr_t)phys_page) + GET_VA_OFFSET_L3(va);
-        if(entry != NULL)
+        if (entry != NULL)
                 *entry = l3_pte;
 
         /* BLANK END */
