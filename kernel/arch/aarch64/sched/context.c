@@ -23,7 +23,12 @@ void init_thread_ctx(struct thread *thread, vaddr_t stack, vaddr_t func,
 
         /* LAB 3 TODO BEGIN */
         /* SP_EL0, ELR_EL1, SPSR_EL1*/
-
+        // SP_EL0: Stack Pointer (EL0)
+        // ELR_EL1: Exception Link Register (EL1)
+        // SPSR_EL1: Saved Program Status Register (EL1)
+        thread->thread_ctx->ec.reg[SP_EL0] = stack;
+        thread->thread_ctx->ec.reg[ELR_EL1] = func;
+        thread->thread_ctx->ec.reg[SPSR_EL1] = SPSR_EL1_EL0t;
         /* LAB 3 TODO END */
 
         /* Set the state of the thread */

@@ -12,6 +12,9 @@
 
 #pragma once
 
+// PH - Program Header
+// PHDR - Program Header Descriptor
+
 struct process_metadata {
         unsigned long phdr_addr;
         unsigned long phentsize;

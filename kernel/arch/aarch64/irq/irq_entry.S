@@ -34,7 +34,39 @@
 .macro	exception_enter
 
 	/* LAB 3 TODO BEGIN */
-
+	; sub sp, sp, #ARCH_EXEC_CONT_SIZE
+	; stp x0, x1, [sp, #0x00]
+	; stp x2, x3, [sp, #0x10]
+	; stp x4, x5, [sp, #0x20]
+	; stp x6, x7, [sp, #0x30]
+	; stp x8, x9, [sp, #0x40]
+	; stp x10, x11, [sp, #0x50]
+	; stp x12, x13, [sp, #0x60]
+	; stp x14, x15, [sp, #0x70]
+	; stp x16, x17, [sp, #0x80]
+	; stp x18, x19, [sp, #0x90]
+	; stp x20, x21, [sp, #0xa0]
+	; stp x22, x23, [sp, #0xb0]
+	; stp x24, x25, [sp, #0xc0]
+	; stp x26, x27, [sp, #0xd0]
+	; stp x28, x29, [sp, #0xe0]
+	; str x30, [sp, #0xf0]
+	sub sp, sp, #ARCH_EXEC_CONT_SIZE
+	stp	x0, x1, [sp, #16 * 0]
+	stp	x2, x3, [sp, #16 * 1]
+	stp	x4, x5, [sp, #16 * 2]
+	stp	x6, x7, [sp, #16 * 3]
+	stp	x8, x9, [sp, #16 * 4]
+	stp	x10, x11, [sp, #16 * 5]
+	stp	x12, x13, [sp, #16 * 6]
+	stp	x14, x15, [sp, #16 * 7]
+	stp	x16, x17, [sp, #16 * 8]
+	stp	x18, x19, [sp, #16 * 9]
+	stp	x20, x21, [sp, #16 * 10]
+	stp	x22, x23, [sp, #16 * 11]
+	stp	x24, x25, [sp, #16 * 12]
+	stp	x26, x27, [sp, #16 * 13]
+	stp	x28, x29, [sp, #16 * 14]
 	/* LAB 3 TODO END */
 
 	mrs	x21, sp_el0
@@ -42,7 +74,11 @@
 	mrs	x23, spsr_el1
 
 	/* LAB 3 TODO BEGIN */
-
+	; str x21, [sp, #0xf8]
+	; str x22, [sp, #0x100]
+	; str x23, [sp, #0x108]
+	stp	x30, x21, [sp, #16 * 15]
+	stp	x22, x23, [sp, #16 * 16]
 	/* LAB 3 TODO END */
 
 .endm
@@ -50,7 +86,11 @@
 .macro	exception_exit
 
 	/* LAB 3 TODO BEGIN */
-
+	; ldr x21, [sp, #0xf8]
+	; ldr x22, [sp, #0x100]
+	; ldr x23, [sp, #0x108]
+	ldp	x22, x23, [sp, #16 * 16]
+	ldp	x30, x21, [sp, #16 * 15] 
 	/* LAB 3 TODO END */
 
 	msr	sp_el0, x21
@@ -58,7 +98,39 @@
 	msr	spsr_el1, x23
 
 	/* LAB 3 TODO BEGIN */
-
+	; ldp x0, x1, [sp, #0x00]
+	; ldp x2, x3, [sp, #0x10]
+	; ldp x4, x5, [sp, #0x20]
+	; ldp x6, x7, [sp, #0x30]
+	; ldp x8, x9, [sp, #0x40]
+	; ldp x10, x11, [sp, #0x50]
+	; ldp x12, x13, [sp, #0x60]
+	; ldp x14, x15, [sp, #0x70]
+	; ldp x16, x17, [sp, #0x80]
+	; ldp x18, x19, [sp, #0x90]
+	; ldp x20, x21, [sp, #0xa0]
+	; ldp x22, x23, [sp, #0xb0]
+	; ldp x24, x25, [sp, #0xc0]
+	; ldp x26, x27, [sp, #0xd0]
+	; ldp x28, x29, [sp, #0xe0]
+	; ldr x30, [sp, #0xf0]
+	; add sp, sp, #ARCH_EXEC_CONT_SIZE
+	ldp	x0, x1, [sp, #16 * 0]
+	ldp	x2, x3, [sp, #16 * 1]
+	ldp	x4, x5, [sp, #16 * 2]
+	ldp	x6, x7, [sp, #16 * 3]
+	ldp	x8, x9, [sp, #16 * 4]
+	ldp	x10, x11, [sp, #16 * 5]
+	ldp	x12, x13, [sp, #16 * 6]
+	ldp	x14, x15, [sp, #16 * 7]
+	ldp	x16, x17, [sp, #16 * 8]
+	ldp	x18, x19, [sp, #16 * 9]
+	ldp	x20, x21, [sp, #16 * 10]
+	ldp	x22, x23, [sp, #16 * 11]
+	ldp	x24, x25, [sp, #16 * 12]
+	ldp	x26, x27, [sp, #16 * 13]
+	ldp	x28, x29, [sp, #16 * 14]
+	add	sp, sp, #ARCH_EXEC_CONT_SIZE
 	/* LAB 3 TODO END */
 
 	eret
@@ -68,7 +140,7 @@
 .macro switch_to_cpu_stack
 	mrs     x24, TPIDR_EL1
 	/* LAB 3 TODO BEGIN */
-
+	add x24, x24, #OFFSET_LOCAL_CPU_STACK
 	/* LAB 3 TODO END */
 	ldr	x24, [x24]
 	mov	sp, x24
@@ -112,7 +184,25 @@
 EXPORT(el1_vector)
 
 	/* LAB 3 TODO BEGIN */
+	exception_entry	sync_el1t
+	exception_entry	irq_el1t
+	exception_entry	fiq_el1t
+	exception_entry	error_el1t
 
+	exception_entry	sync_el1h
+	exception_entry	irq_el1h
+	exception_entry	fiq_el1h
+	exception_entry	error_el1h
+
+	exception_entry	sync_el0_64
+	exception_entry	irq_el0_64
+	exception_entry	fiq_el0_64
+	exception_entry	error_el0_64
+
+	exception_entry	sync_el0_32
+	exception_entry	irq_el0_32
+	exception_entry	fiq_el0_32
+	exception_entry	error_el0_32
 	/* LAB 3 TODO END */
 
 /*
@@ -146,9 +236,12 @@ error_el1t:
 error_el1h:
 sync_el1t:
 	/* LAB 3 TODO BEGIN */
-
+	bl unexpected_handler
 	/* LAB 3 TODO END */
 
+/* 实际上并不会执行到这里
+ * 在 handle_entry_c 中，我们不支持所有的 EL1 异常
+*/
 sync_el1h:
 	exception_enter
 	mov	x0, #SYNC_EL1h
@@ -157,7 +250,9 @@ sync_el1h:
 
 	/* LAB 3 TODO BEGIN */
 	/* jump to handle_entry_c, store the return value as the ELR_EL1 */
-
+	bl handle_entry_c
+	/* ELR_EL1 为第 32 个寄存器（register.h），地址为 sp + 0x100 */
+	str x0, [sp, #0x100]
 	/* LAB 3 TODO END */
 	exception_exit
 
