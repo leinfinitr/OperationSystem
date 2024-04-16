@@ -295,9 +295,7 @@ cap_t sys_create_cap_group(unsigned long cap_group_args_p)
         }
         /* LAB 3 TODO BEGIN */
         /* initialize cap group */
-        /* TODO */
-        // cap_group_init(new_cap_group, BASE_OBJECT_NUM, args.badge);
-        cap_group_init(new_cap_group, BASE_OBJECT_NUM, ROOT_CAP_GROUP_BADGE);
+        cap_group_init(new_cap_group, BASE_OBJECT_NUM, args.badge);
         /* LAB 3 TODO END */
 
         cap = cap_alloc(current_cap_group, new_cap_group);
