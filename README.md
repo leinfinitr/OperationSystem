@@ -47,7 +47,7 @@ ChCore用在 kernel/include/sched/sched.h 中定义的静态函数封装对cur_s
 * sched_dequeue：从调度器的就绪队列中取出一个线程。
 * sched_top：用于debug,打印当前所有核心上的运行线程以及等待线程的函数。
 
-在本部分将实现一个基本的Round Robin（时间片轮转）调度器，该程序调度在同一CPU核心上运行的线程，因此内核初始化过程调用sched_init时传入了&rr作为参数。该调度器的调度操作（即对于sched_ops定义的各个函数接口的实现）实现在kernel/sched/policy_rr.c中，这里煎药介绍其涉及的数据结构：
+在本部分将实现一个基本的Round Robin（时间片轮转）调度器，该程序调度在同一CPU核心上运行的线程，因此内核初始化过程调用sched_init时传入了&rr作为参数。该调度器的调度操作（即对于sched_ops定义的各个函数接口的实现）实现在kernel/sched/policy_rr.c中，这里简要介绍其涉及的数据结构：
 
 `current_threads`是一个数组，分别指向每个CPU核心上运行的线程。而`current_thread`则利用`smp_get_cpu_id`获取当前运行核心的id，从而找到当前核心上运行的线程。
 
@@ -146,3 +146,31 @@ Note：注册回调线程和服务线程都不再拥有调度上下文（Schedul
     * `ipc_return`会发起`sys_ipc_return`系统调用，该系统调用会迁移回到IPC客户端线程继续运行，IPC客户端线程从`ipc_call`中返回。
 
 > 练习 7：在user/chcore-libc/musl-libc/src/chcore-port/ipc.c与kernel/ipc/connection.c中实现了大多数IPC相关的代码，请根据注释补全kernel/ipc/connection.c中的代码。之后运行ChCore可以看到 “[TEST] Test IPC finished!” 输出，你可以通过 Test IPC 测试点。
+
+## 第四部分：实机运行与IPC性能优化
+
+在本部分，你需要对IPC的性能进行优化。为此，你首先需要在树莓派3B实机上运行ChCore。
+
+> 练习 8：请在树莓派3B上运行ChCore，并确保此前实现的所有功能都能正确运行。
+
+在ChCore启动并通过测试后，在命令行运行
+```shell
+$ ./test_ipc_perf.bin
+```
+
+你会得到如下输出结果
+```shell
+[TEST] test ipc with 32 threads, time: xxx cycles
+[TEST] test ipc with send cap, loop: 100, time: xxx cycles
+[TEST] test ipc with send cap and return cap, loop: 100, time: xxx cycles
+[TEST] Test IPC Perf finished!
+```
+
+> 练习 9：尝试优化在第三部分实现的IPC的性能，降低test_ipc_perf.bin的三个测试所消耗的cycle数
+
+IPC性能测试程序的测试用例包括：
+1. 创建多个线程发起IPC请求（不传递cap），Server收到IPC后直接返回。记录从创建线程到所有线程运行结束的时间。
+2. Client创建多个PMO对象，并发起IPC请求（传递PMO）；Server收到IPC后读取PMO，并依据读出的值算出结果，将结果写回随IPC传递的PMO中并返回；Client在IPC返回后读取PMO中的结果。将上述过程循环多次并记录运行时间。
+3. Client创建多个PMO对象，并发起IPC请求（传递PMO）；Server收到IPC后读取PMO，并依据读出的值算出结果，然后创建新的PMO对象，将结果写入新创建的PMO中，并通过`ipc_return_with_cap`返回；Client在IPC返回后读取返回的PMO中的结果。将上述过程循环多次并记录运行时间。
+
+在测试能够顺利通过的前提下，你可以修改任意代码。（测试程序所调用的函数位于 `user/chcore-libc/libchcore/porting/overrides/src/chcore-port/ipc.c`）
