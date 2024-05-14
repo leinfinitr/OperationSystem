@@ -1,13 +1,13 @@
 /*
- * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS), Shanghai Jiao Tong University (SJTU)
- * Licensed under the Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS),
+ * Shanghai Jiao Tong University (SJTU) Licensed under the Mulan PSL v2. You can
+ * use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
  *     http://license.coscl.org.cn/MulanPSL2
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
- * PURPOSE.
- * See the Mulan PSL v2 for more details.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
+ * KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+ * NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE. See the
+ * Mulan PSL v2 for more details.
  */
 
 /*
@@ -108,10 +108,10 @@ static int register_server(struct thread *server, unsigned long ipc_routine,
         /* LAB 4 TODO BEGIN (exercise 7) */
         /* Complete the config structure, replace xxx with actual values */
         /* Record the ipc_routine_entry  */
-        // config->declared_ipc_routine_entry = xxx;
+        config->declared_ipc_routine_entry = ipc_routine;
 
         /* Record the registration cb thread */
-        // config->register_cb_thread = xxx;
+        config->register_cb_thread = register_cb_thread;
         /* LAB 4 TODO END (exercise 7) */
 
         register_cb_config = kmalloc(sizeof(*register_cb_config));
@@ -249,11 +249,12 @@ static int create_connection(struct thread *client, struct thread *server,
         conn->client_badge = current_cap_group->badge;
 
         /* LAB 4 TODO BEGIN (exercise 7) */
-        /* Complete the following fields of shm, replace xxx with actual values */
-        // conn->shm.client_shm_uaddr = xxx;
-        // conn->shm.shm_size = xxx;
-        // conn->shm.shm_cap_in_client = xxx;
-        // conn->shm.shm_cap_in_server = xxx;
+        /* Complete the following fields of shm, replace xxx with actual values
+         */
+        conn->shm.client_shm_uaddr = shm_addr_client;
+        conn->shm.shm_size = shm_size;
+        conn->shm.shm_cap_in_client = shm_cap_client;
+        conn->shm.shm_cap_in_server = shm_cap_server;
         /* LAB 4 TODO END (exercise 7) */
 
         lock_init(&conn->ownership);
@@ -343,7 +344,8 @@ static inline int release_ipc_lock(struct ipc_connection *conn)
 }
 
 static void ipc_thread_migrate_to_server(struct ipc_connection *conn,
-                                     unsigned long shm_addr, size_t shm_size, unsigned int cap_num)
+                                         unsigned long shm_addr,
+                                         size_t shm_size, unsigned int cap_num)
 {
         struct thread *target;
         struct ipc_server_handler_config *handler_config;
@@ -380,15 +382,16 @@ static void ipc_thread_migrate_to_server(struct ipc_connection *conn,
          * replace xxx with actual arguments.
          */
 
-        /* Note: see how stack address and ip are get in sys_ipc_register_cb_return */
-        // arch_set_thread_stack(target, xxx);
-        // arch_set_thread_next_ip(target, xxx);
+        /* Note: see how stack address and ip are get in
+         * sys_ipc_register_cb_return */
+        arch_set_thread_stack(target, handler_config->ipc_routine_stack);
+        arch_set_thread_next_ip(target, handler_config->ipc_routine_entry);
 
         /* see server_handler type in uapi/ipc.h */
-        // arch_set_thread_arg0(target, xxx);
-        // arch_set_thread_arg1(target, xxx);
-        // arch_set_thread_arg2(target, xxx);
-        // arch_set_thread_arg3(target, xxx);
+        arch_set_thread_arg0(target, shm_addr);
+        arch_set_thread_arg1(target, shm_size);
+        arch_set_thread_arg2(target, cap_num);
+        arch_set_thread_arg3(target, conn->client_badge);
         /* LAB 4 TODO END (exercise 7) */
 
         set_thread_arch_spec_state_ipc(target);
@@ -420,8 +423,7 @@ struct client_shm_config {
 
 /* IPC related system calls */
 
-int sys_register_server(unsigned long ipc_routine,
-                        cap_t register_thread_cap,
+int sys_register_server(unsigned long ipc_routine, cap_t register_thread_cap,
                         unsigned long destructor)
 {
         return register_server(
@@ -491,8 +493,9 @@ cap_t sys_register_client(cap_t server_cap, unsigned long shm_config_ptr)
                 goto out_fail_unlock;
         }
 
-        copy_from_user((void *)&shm_config, (void *)shm_config_ptr, sizeof(shm_config));
-
+        copy_from_user((void *)&shm_config,
+                       (void *)shm_config_ptr,
+                       sizeof(shm_config));
 
         /* Map the pmo of the shared memory */
         r = map_pmo_in_current_cap_group(
@@ -522,14 +525,17 @@ cap_t sys_register_client(cap_t server_cap, unsigned long shm_config_ptr)
         /* LAB 4 TODO BEGIN (exercise 7) */
         /* Set target thread SP/IP/arg, replace xxx with actual arguments */
         /* Note: see how stack address and ip are get in sys_register_server */
-        // arch_set_thread_stack(register_cb_thread, xxx);
-        // arch_set_thread_next_ip(register_cb_thread, xxx);
+        arch_set_thread_stack(register_cb_thread,
+                              register_cb_config->register_cb_stack);
+        arch_set_thread_next_ip(register_cb_thread,
+                                register_cb_config->register_cb_entry);
 
         /*
          * Note: see the parameter of register_cb function defined
          * in user/chcore-libc/musl-libc/src/chcore-port/ipc.c
          */
-        // arch_set_thread_arg0(register_cb_thread, xxx);
+        arch_set_thread_arg0(register_cb_thread,
+                             server_config->declared_ipc_routine_entry);
         /* LAB 4 TODO END (exercise 7) */
 
         obj_put(server);
@@ -568,8 +574,8 @@ static int ipc_send_cap(struct thread *target_thread, unsigned int cap_num)
         target_cap_group = target_thread->cap_group;
 
         for (i = 0; i < cap_num; i++) {
-                dest_cap = cap_copy(current_cap_group, target_cap_group,
-                                    src_cap_buf[i]);
+                dest_cap = cap_copy(
+                        current_cap_group, target_cap_group, src_cap_buf[i]);
                 if (dest_cap < 0) {
                         r = dest_cap;
                         goto out_free_cap;
@@ -615,7 +621,8 @@ unsigned long sys_ipc_call(cap_t conn_cap, unsigned int cap_num)
                 /* Fails to lock the connection */
                 obj_put(conn);
 
-                if (current_thread->thread_ctx->thread_exit_state == TE_EXITING) {
+                if (current_thread->thread_ctx->thread_exit_state
+                    == TE_EXITING) {
                         /* The connection is locked by the recycler */
 
                         if (current_thread->thread_ctx->type == TYPE_SHADOW) {
@@ -660,13 +667,14 @@ unsigned long sys_ipc_call(cap_t conn_cap, unsigned int cap_num)
         }
 
         /*
-        * A shm is bound to one connection.
-        * But, the client and server can map the shm at different addresses.
-        * So, we pass the server-side shm address here.
-        */
+         * A shm is bound to one connection.
+         * But, the client and server can map the shm at different addresses.
+         * So, we pass the server-side shm address here.
+         */
 
         /* Call server (handler thread) */
-        ipc_thread_migrate_to_server(conn, conn->shm.server_shm_uaddr, conn->shm.shm_size, cap_num);
+        ipc_thread_migrate_to_server(
+                conn, conn->shm.server_shm_uaddr, conn->shm.shm_size, cap_num);
 
         BUG("should not reach here\n");
 
@@ -692,7 +700,7 @@ int sys_ipc_return(unsigned long ret, unsigned int cap_num)
         if (!conn)
                 return -EINVAL;
 
-                /*
+        /*
          * Get the client thread that issues this IPC.
          *
          * Note that it is **unnecessary** to set the field to NULL
@@ -809,8 +817,8 @@ int sys_ipc_return(unsigned long ret, unsigned int cap_num)
 }
 
 int sys_ipc_register_cb_return(cap_t server_handler_thread_cap,
-                                unsigned long server_thread_exit_routine,
-                                unsigned long server_shm_addr)
+                               unsigned long server_thread_exit_routine,
+                               unsigned long server_shm_addr)
 {
         struct ipc_server_register_cb_config *config;
         struct ipc_connection *conn;
@@ -890,8 +898,9 @@ int sys_ipc_register_cb_return(cap_t server_handler_thread_cap,
         /* Fill the server information in the IPC connection. */
 
         /* LAB 4 TODO BEGIN (exercise 7) */
-        /* Complete the server_shm_uaddr field of shm, replace xxx with the actual value */
-        // conn->shm.server_shm_uaddr = xxx;
+        /* Complete the server_shm_uaddr field of shm, replace xxx with the
+         * actual value */
+        conn->shm.server_shm_uaddr = server_shm_addr;
         /* LAB 4 TODO END (exercise 7) */
 
         conn->server_handler_thread = ipc_server_handler_thread;

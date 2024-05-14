@@ -1,13 +1,13 @@
 /*
- * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS), Shanghai Jiao Tong University (SJTU)
- * Licensed under the Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS),
+ * Shanghai Jiao Tong University (SJTU) Licensed under the Mulan PSL v2. You can
+ * use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
  *     http://license.coscl.org.cn/MulanPSL2
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
- * PURPOSE.
- * See the Mulan PSL v2 for more details.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
+ * KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+ * NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE. See the
+ * Mulan PSL v2 for more details.
  */
 
 #include <sched/sched.h>
@@ -53,9 +53,12 @@ int __rr_sched_enqueue(struct thread *thread, int cpuid)
         obj_ref(thread);
 
         /* LAB 4 TODO BEGIN (exercise 2) */
-        /* Insert thread into the ready queue of cpuid and update queue length */
+        /* Insert thread into the ready queue of cpuid and update queue length
+         */
         /* Note: you should add two lines of code. */
-
+        list_append(&thread->ready_queue_node,
+                    &rr_ready_queue_meta[cpuid].queue_head);
+        rr_ready_queue_meta[cpuid].queue_len += 1;
         /* LAB 4 TODO END (exercise 2) */
 
         return 0;
@@ -141,7 +144,8 @@ int __rr_sched_dequeue(struct thread *thread)
         /* LAB 4 TODO BEGIN (exercise 3) */
         /* Delete thread from the ready queue and upate the queue length */
         /* Note: you should add two lines of code. */
-
+        list_del(&(thread->ready_queue_node));
+        rr_ready_queue_meta[thread->thread_ctx->cpuid].queue_len--;
         /* LAB 4 TODO END (exercise 3) */
         thread->thread_ctx->state = TS_INTER;
         obj_put(thread);
@@ -195,8 +199,8 @@ struct thread *rr_sched_choose_thread(void)
                 }
 
                 BUG_ON(__rr_sched_dequeue(thread));
-                if (thread->thread_ctx->thread_exit_state == TE_EXITING ||
-                  thread->thread_ctx->thread_exit_state == TE_EXITED) {
+                if (thread->thread_ctx->thread_exit_state == TE_EXITING
+                    || thread->thread_ctx->thread_exit_state == TE_EXITED) {
                         /* Thread need to exit. Set the state to TS_EXIT */
                         thread->thread_ctx->state = TS_EXIT;
                         thread->thread_ctx->thread_exit_state = TE_EXITED;
@@ -208,7 +212,6 @@ struct thread *rr_sched_choose_thread(void)
 out:
         return &idle_threads[cpuid];
 }
-
 
 /*
  * Schedule a thread to execute.
@@ -260,15 +263,16 @@ int rr_sched(void)
                         }
                         /* LAB 4 TODO BEGIN (exercise 6) */
                         /* Refill budget for current running thread (old) */
-
+                        old->thread_ctx->sc->budget = DEFAULT_BUDGET;
                         /* LAB 4 TODO END (exercise 6) */
 
                         old->thread_ctx->state = TS_INTER;
 
                         /* LAB 4 TODO BEGIN (exercise 4) */
                         /* Enqueue current running thread */
-                        /* Note: you should just add a function call (one line of code) */
-
+                        /* Note: you should just add a function call (one line
+                         * of code) */
+                        rr_sched_enqueue(old);
                         /* LAB 4 TODO END (exercise 4) */
                         break;
                 case TS_WAITING:
@@ -291,7 +295,11 @@ int rr_sched_init(void)
 {
         /* LAB 4 TODO BEGIN (exercise 1) */
         /* Initial the ready queues (rr_ready_queue_meta) for each CPU core */
-
+        for (unsigned int i = 0; i < PLAT_CPU_NUM; i++) {
+                init_list_head(&(rr_ready_queue_meta[i].queue_head));
+                rr_ready_queue_meta[i].queue_len = 0;
+                lock_init(&(rr_ready_queue_meta[i].queue_lock));
+        }
         /* LAB 4 TODO END (exercise 1) */
 
         test_scheduler_meta();
@@ -371,7 +379,7 @@ void rr_top(void)
 
 struct sched_ops rr = {.sched_init = rr_sched_init,
                        .sched = rr_sched,
-		       .sched_periodic = rr_sched,
+                       .sched_periodic = rr_sched,
                        .sched_enqueue = rr_sched_enqueue,
                        .sched_dequeue = rr_sched_dequeue,
                        .sched_top = rr_top};

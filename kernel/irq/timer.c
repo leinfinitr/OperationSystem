@@ -1,13 +1,13 @@
 /*
- * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS), Shanghai Jiao Tong University (SJTU)
- * Licensed under the Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS),
+ * Shanghai Jiao Tong University (SJTU) Licensed under the Mulan PSL v2. You can
+ * use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
  *     http://license.coscl.org.cn/MulanPSL2
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
- * PURPOSE.
- * See the Mulan PSL v2 for more details.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
+ * KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+ * NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE. See the
+ * Mulan PSL v2 for more details.
  */
 
 #include <irq/irq.h>
@@ -130,10 +130,13 @@ void handle_timer_irq(void)
         time_states[smp_get_cpu_id()].next_expire = current_tick + tick_delta;
         plat_handle_timer_irq(tick_delta);
         /* LAB 4 TODO BEGIN (exercise 6) */
-        /* Decrease the budget of current thread by 1 if current thread is not NULL */
-
+        /* Decrease the budget of current thread by 1 if current thread is not
+         * NULL */
+        if (current_thread != NULL) {
+                current_thread->thread_ctx->sc->budget--;
+        }
         /* Then call sched to trigger scheduling */
-
+        sched();
         /* LAB 4 TODO END (exercise 6) */
 }
 
