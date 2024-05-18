@@ -587,7 +587,8 @@ static int ipc_send_cap(struct thread *target_thread, unsigned int cap_num)
 
 out_free_cap:
         for (--i; i >= 0; i--)
-                cap_free(target_cap_group, dest_cap_buf[i]);
+                // cap_free(target_cap_group, dest_cap_buf[i]);
+                __cap_free(target_cap_group, dest_cap_buf[i], false, false);
 out_fail:
         return r;
 }
@@ -603,20 +604,20 @@ unsigned long sys_ipc_call(cap_t conn_cap, unsigned int cap_num)
         }
 
         conn = obj_get(current_cap_group, conn_cap, TYPE_CONNECTION);
-        if (unlikely(!conn)) {
-                return -ECAPBILITY;
-        }
+        // if (unlikely(!conn)) {
+        //         return -ECAPBILITY;
+        // }
 
         if (try_lock(&conn->ownership) == 0) {
                 /*
                  * Succeed in locking.
                  * Continue IPC call only when the connection state is VALID.
                  */
-                if (conn->state != CONN_VALID) {
-                        unlock(&conn->ownership);
-                        obj_put(conn);
-                        return -EINVAL;
-                }
+                // if (conn->state != CONN_VALID) {
+                //         unlock(&conn->ownership);
+                //         obj_put(conn);
+                //         return -EINVAL;
+                // }
         } else {
                 /* Fails to lock the connection */
                 obj_put(conn);
@@ -644,7 +645,8 @@ unsigned long sys_ipc_call(cap_t conn_cap, unsigned int cap_num)
                                 /* Current thread will be set to exited by
                                  * the scheduler */
                                 sched();
-                                eret_to_thread(switch_context());
+                                // eret_to_thread(switch_context());
+                                __eret_to_thread(switch_context());
                         }
                 } else {
                         /* The connection is locked by someone else */
@@ -735,43 +737,45 @@ int sys_ipc_return(unsigned long ret, unsigned int cap_num)
          *     -> No: return normally
          */
         if (client->thread_ctx->thread_exit_state == TE_EXITING) {
-                kdebug("%s:%d Step-2\n", __func__, __LINE__);
+                // kdebug("%s:%d Step-2\n", __func__, __LINE__);
 
-                /*
-                 * Currently, a connection is assumed to belong to the client
-                 * process. So, it the client is exiting, then the connection is
-                 * useless.
-                 */
+                // /*
+                //  * Currently, a connection is assumed to belong to the client
+                //  * process. So, it the client is exiting, then the connection
+                //  is
+                //  * useless.
+                //  */
 
-                conn->state = CONN_INCOME_STOPPED;
+                // conn->state = CONN_INCOME_STOPPED;
 
-                /* If client thread is not TYPE_SHADOW, then directly mark it as
-                 * exited and reschedule.
-                 *
-                 * Otherwise, client thread is B in a chained IPC (A:B:C) and
-                 * current_thread is C. So, C returns to B and later B will
-                 * returns to A.
-                 */
-                if (client->thread_ctx->type != TYPE_SHADOW) {
-                        kdebug("%s:%d Step-2.0\n", __func__, __LINE__);
-                        handler_config->active_conn = NULL;
+                // /* If client thread is not TYPE_SHADOW, then directly mark it
+                // as
+                //  * exited and reschedule.
+                //  *
+                //  * Otherwise, client thread is B in a chained IPC (A:B:C) and
+                //  * current_thread is C. So, C returns to B and later B will
+                //  * returns to A.
+                //  */
+                // if (client->thread_ctx->type != TYPE_SHADOW) {
+                //         kdebug("%s:%d Step-2.0\n", __func__, __LINE__);
+                //         handler_config->active_conn = NULL;
 
-                        current_thread->thread_ctx->state = TS_WAITING;
+                //         current_thread->thread_ctx->state = TS_WAITING;
 
-                        current_thread->thread_ctx->sc = NULL;
+                //         current_thread->thread_ctx->sc = NULL;
 
-                        unlock(&handler_config->ipc_lock);
+                //         unlock(&handler_config->ipc_lock);
 
-                        unlock(&conn->ownership);
-                        obj_put(conn);
+                //         unlock(&conn->ownership);
+                //         obj_put(conn);
 
-                        client->thread_ctx->thread_exit_state = TE_EXITED;
-                        client->thread_ctx->state = TS_EXIT;
+                //         client->thread_ctx->thread_exit_state = TE_EXITED;
+                //         client->thread_ctx->state = TS_EXIT;
 
-                        sched();
-                        eret_to_thread(switch_context());
-                        /* The control flow will never go through */
-                }
+                //         sched();
+                //         eret_to_thread(switch_context());
+                //         /* The control flow will never go through */
+                // }
         }
 
         if (cap_num != 0) {
