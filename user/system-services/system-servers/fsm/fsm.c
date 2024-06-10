@@ -1,13 +1,13 @@
 /*
- * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS), Shanghai Jiao Tong University (SJTU)
- * Licensed under the Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS),
+ * Shanghai Jiao Tong University (SJTU) Licensed under the Mulan PSL v2. You can
+ * use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
  *     http://license.coscl.org.cn/MulanPSL2
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
- * PURPOSE.
- * See the Mulan PSL v2 for more details.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
+ * KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+ * NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE. See the
+ * Mulan PSL v2 for more details.
  */
 
 #include "fsm.h"
@@ -141,8 +141,16 @@ int fsm_mount_fs(const char *path, const char *mount_point)
         }
 
         /* Lab 5 TODO Begin */
-
-        UNUSED(mp_node);
+        /* Connect to the FS that we mount. */
+        ipc_struct_t *fs_ipc_struct = ipc_register_client(fs_cap);
+        if (fs_ipc_struct == NULL) {
+                pthread_rwlock_unlock(&mount_point_infos_rwlock);
+                goto out;
+        }
+        mp_node->_fs_ipc_struct = fs_ipc_struct;
+        strlcpy(mp_node->path, mount_point, sizeof(mp_node->path));
+        fs_num++;
+        ret = 0;
 
         /* Lab 5 TODO End */
         pthread_rwlock_unlock(&mount_point_infos_rwlock);
@@ -232,10 +240,27 @@ DEFINE_SERVER_HANDLER(fsm_dispatch)
         switch (fsm_req->req) {
         case FSM_REQ_PARSE_PATH: {
                 /* Lab 5 TODO Begin */
-
-                UNUSED(mpinfo);
-                UNUSED(mount_id);
-                
+                // Parses the path to the file accessed in the IPC request and
+                // finds the corresponding file system.
+                char *path = fsm_req->path;
+                mpinfo = get_mount_point(path, strlen(path));
+                if (mpinfo == NULL) {
+                        ret = -ENOENT;
+                        break;
+                }
+                mount_id = fsm_get_client_cap(client_badge, mpinfo->fs_cap);
+                // If the client has already obtained the cap of the
+                // file system, directly return the parsed file path
+                if (mount_id >= 0) {
+                        ret = mount_id;
+                        break;
+                }
+                // Otherwise, FSM will return the cap of the file system
+                // corresponding to the access path to the client and record the
+                // information of the file system cap that the client has
+                // obtained
+                ret = fsm_set_client_cap(client_badge, mpinfo->fs_cap);
+                ret_with_cap = true;
                 /* Lab 5 TODO End */
         }
         case FSM_REQ_MOUNT: {
@@ -253,8 +278,8 @@ DEFINE_SERVER_HANDLER(fsm_dispatch)
         }
         default:
                 error("%s: %d Not impelemented yet\n",
-                        __func__,
-                        ((int *)(ipc_get_msg_data(ipc_msg)))[0]);
+                      __func__,
+                      ((int *)(ipc_get_msg_data(ipc_msg)))[0]);
                 usys_exit(-1);
                 break;
         }

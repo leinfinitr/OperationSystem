@@ -1,13 +1,13 @@
 /*
- * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS), Shanghai Jiao Tong University (SJTU)
- * Licensed under the Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS),
+ * Shanghai Jiao Tong University (SJTU) Licensed under the Mulan PSL v2. You can
+ * use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
  *     http://license.coscl.org.cn/MulanPSL2
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
- * PURPOSE.
- * See the Mulan PSL v2 for more details.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
+ * KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+ * NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE. See the
+ * Mulan PSL v2 for more details.
  */
 
 #include "chcore/ipc.h"
@@ -123,7 +123,15 @@ int fs_wrapper_get_server_entry(badge_t client_badge, int fd)
 
         /* Lab 5 TODO Begin */
 
-        UNUSED(n);
+        pthread_spin_lock(&server_entry_mapping_lock);
+        for_each_in_list (
+                n, struct server_entry_node, node, &server_entry_mapping) {
+                if (n->client_badge == client_badge) {
+                        pthread_spin_unlock(&server_entry_mapping_lock);
+                        return n->fd_to_fid[fd];
+                }
+        }
+        pthread_spin_unlock(&server_entry_mapping_lock);
 
         /* Lab 5 TODO End */
         return -1;
@@ -139,13 +147,38 @@ int fs_wrapper_set_server_entry(badge_t client_badge, int fd, int fid)
 
         /* Lab 5 TODO Begin */
 
-        /* 
-         * Check if client_badge already involved, 
+        /*
+         * Check if client_badge already involved,
          * create new server_entry_node if not.
          */
+        pthread_spin_lock(&server_entry_mapping_lock);
+        for_each_in_list (private_iter,
+                          struct server_entry_node,
+                          node,
+                          &server_entry_mapping) {
+                if (private_iter->client_badge == client_badge) {
+                        private_iter->fd_to_fid[fd] = fid;
+                        pthread_spin_unlock(&server_entry_mapping_lock);
+                        return 0;
+                }
+        }
 
-        UNUSED(private_iter);
-        
+        struct server_entry_node *new_node =
+                malloc(sizeof(struct server_entry_node));
+        if (!new_node) {
+                pthread_spin_unlock(&server_entry_mapping_lock);
+                return -ENOMEM;
+        }
+        new_node->client_badge = client_badge;
+
+        for (int i = 0; i < MAX_SERVER_ENTRY_PER_CLIENT; i++) {
+                new_node->fd_to_fid[i] = -1;
+        }
+        new_node->fd_to_fid[fd] = fid;
+
+        list_add(&new_node->node, &server_entry_mapping);
+        pthread_spin_unlock(&server_entry_mapping_lock);
+
         /* Lab 5 TODO End */
         return 0;
 }

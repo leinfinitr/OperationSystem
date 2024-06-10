@@ -1,13 +1,13 @@
 /*
- * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS), Shanghai Jiao Tong University (SJTU)
- * Licensed under the Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan PSL v2.
+ * Copyright (c) 2023 Institute of Parallel And Distributed Systems (IPADS),
+ * Shanghai Jiao Tong University (SJTU) Licensed under the Mulan PSL v2. You can
+ * use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
  *     http://license.coscl.org.cn/MulanPSL2
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR
- * PURPOSE.
- * See the Mulan PSL v2 for more details.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
+ * KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+ * NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE. See the
+ * Mulan PSL v2 for more details.
  */
 
 #include "fcntl.h"
@@ -125,8 +125,53 @@ int fs_wrapper_open(badge_t client_badge, ipc_msg_t *ipc_msg,
          *   2. get/alloc vnode
          *   3. associate server_entry with vnode
          */
-        
-        return 0;
+        int entry_id = alloc_entry();
+        if (entry_id < 0) {
+                return -EMFILE;
+        }
+
+        struct fs_vnode *vnode;
+        ino_t vnode_id;
+        off_t vnode_size;
+        int vnode_type;
+        void *private;
+        int new_fd = fr->open.new_fd;
+
+        fr->open.new_fd = AT_FDROOT;
+        int ret = server_ops.open(fr->open.pathname,
+                                  fr->open.flags,
+                                  fr->open.mode,
+                                  &vnode_id,
+                                  &vnode_size,
+                                  &vnode_type,
+                                  &private);
+        if (ret < 0) {
+                free_entry(entry_id);
+                return ret;
+        }
+
+        vnode = get_fs_vnode_by_id(vnode_id);
+        if (!vnode) {
+                vnode = alloc_fs_vnode(
+                        vnode_id, vnode_type, vnode_size, private);
+                if (!vnode) {
+                        free_entry(entry_id);
+                        return -ENOMEM;
+                }
+                list_add(&vnode->node, &fs_vnode_list);
+        } else {
+                inc_ref_fs_vnode(vnode);
+        }
+
+        assign_entry(server_entrys[entry_id],
+                     fr->open.flags,
+                     0,
+                     vnode_type,
+                     fr->open.pathname,
+                     vnode);
+        fs_wrapper_set_server_entry(client_badge, fr->open.new_fd, entry_id);
+
+        return new_fd;
 
         /* Lab 5 TODO End */
 }
@@ -135,6 +180,24 @@ int fs_wrapper_close(badge_t client_badge, ipc_msg_t *ipc_msg,
                      struct fs_request *fr)
 {
         /* Lab 5 TODO Begin */
+        int fd = fr->close.fd;
+        if (fd_type_invalid(fd, true) && fd_type_invalid(fd, false)) {
+                return -ENOENT;
+        }
+
+        struct server_entry *entry = server_entrys[fd];
+        if (entry->refcnt == 0) {
+                return -EBADF;
+        }
+
+        if (entry->refcnt == 1) {
+                free_entry(fd);
+        } else {
+                entry->refcnt--;
+        }
+
+        fs_wrapper_clear_server_entry(client_badge, fd);
+
         return 0;
         /* Lab 5 TODO End */
 }
@@ -142,28 +205,82 @@ int fs_wrapper_close(badge_t client_badge, ipc_msg_t *ipc_msg,
 int fs_wrapper_read(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
         /* Lab 5 TODO Begin */
-        return 0;
+        if (server_entrys[fr->read.fd]->offset
+            >= server_entrys[fr->read.fd]->vnode->size) {
+                return 0;
+        }
+
+        if (server_entrys[fr->read.fd]->offset + fr->read.count
+            > server_entrys[fr->read.fd]->vnode->size) {
+                fr->read.count = server_entrys[fr->read.fd]->vnode->size
+                                 - server_entrys[fr->read.fd]->offset;
+        }
+
+        void *operator= server_entrys[fr->read.fd]->vnode->private;
+        ssize_t ret = server_ops.read(operator,
+                                      server_entrys[fr->read.fd]->offset,
+                                      fr->read.count,
+                                      ipc_get_msg_data(ipc_msg));
+        if (ret > 0) {
+                server_entrys[fr->read.fd]->offset += ret;
+        }
+
+        return ret;
         /* Lab 5 TODO End */
 }
 
 int fs_wrapper_pread(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
         /* Lab 5 TODO Begin (OPTIONAL) */
-        return 0;
+        if (fr->pread.offset >= server_entrys[fr->pread.fd]->vnode->size) {
+                return 0;
+        }
+
+        if (fr->pread.offset + fr->pread.count
+            > server_entrys[fr->pread.fd]->vnode->size) {
+                fr->pread.count = server_entrys[fr->pread.fd]->vnode->size
+                                  - fr->pread.offset;
+        }
+
+        void *operator= server_entrys[fr->pread.fd]->vnode->private;
+        ssize_t ret = server_ops.read(operator,
+                                      fr->pread.offset,
+                                      fr->pread.count,
+                                      ipc_get_msg_data(ipc_msg));
+        return ret;
         /* Lab 5 TODO End (OPTIONAL) */
 }
 
 int fs_wrapper_pwrite(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
         /* Lab 5 TODO Begin (OPTIONAL) */
-        return 0;
+        void *operator= server_entrys[fr->pwrite.fd]->vnode->private;
+        ssize_t ret = server_ops.write(operator,
+                                       fr->pwrite.offset,
+                                       fr->pwrite.count,
+                                       ipc_get_msg_data(ipc_msg));
+        return ret;
         /* Lab 5 TODO End (OPTIONAL) */
 }
 
 int fs_wrapper_write(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
         /* Lab 5 TODO Begin */
-        return 0;
+        if (server_entrys[fr->write.fd]->flags & O_APPEND) {
+                server_entrys[fr->write.fd]->offset =
+                        server_entrys[fr->write.fd]->vnode->size;
+        }
+
+        void *operator= server_entrys[fr->write.fd]->vnode->private;
+        ssize_t ret = server_ops.write(operator,
+                                       server_entrys[fr->write.fd]->offset,
+                                       fr->write.count,
+                                       ipc_get_msg_data(ipc_msg));
+        if (ret > 0) {
+                server_entrys[fr->write.fd]->offset += ret;
+        }
+
+        return ret;
         /* Lab 5 TODO End */
 }
 
@@ -171,14 +288,39 @@ int fs_wrapper_lseek(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
         /* Lab 5 TODO Begin */
 
-        /* 
+        /*
          * Hint: possible values of whence:
          *   SEEK_SET 0
          *   SEEK_CUR 1
          *   SEEK_END 2
          */
-        
-        return 0;
+        int fd = fr->lseek.fd;
+        if (fd_type_invalid(fd, true)) {
+                return -EBADF;
+        }
+        unsigned long offset = fr->lseek.offset;
+        int whence = fr->lseek.whence;
+        off_t ret = -1;
+
+        switch (whence) {
+        case SEEK_SET:
+                server_entrys[fd]->offset = offset;
+                ret = server_entrys[fd]->offset;
+                break;
+        case SEEK_CUR:
+                server_entrys[fd]->offset += offset;
+                ret = server_entrys[fd]->offset;
+                break;
+        case SEEK_END:
+                server_entrys[fd]->offset =
+                        server_entrys[fd]->vnode->size + offset;
+                ret = server_entrys[fd]->offset;
+                break;
+        default:
+                return -EINVAL;
+        }
+
+        return ret;
 
         /* Lab 5 TODO End */
 }
@@ -490,10 +632,30 @@ int fs_wrapper_fmap(badge_t client_badge, ipc_msg_t *ipc_msg,
         UNUSED(offset);
 
         /* Lab 5 TODO Begin */
-        UNUSED(pmo_cap);
-        UNUSED(vnode);
-        UNUSED(ret);
+        ret = fmap_area_insert(
+                client_badge, addr, length, vnode, offset, flags, prot);
+        if (ret < 0) {
+                *ret_with_cap = false;
+                return ret;
+        }
+
+        *ret_with_cap = true;
+        if (vnode->pmo_cap == -1) {
+                pmo_cap = usys_create_pmo(vnode->size, PMO_FILE);
+                if (pmo_cap < 0) {
+                        ret = pmo_cap;
+                        fmap_area_remove(client_badge, (vaddr_t)addr, length);
+                        *ret_with_cap = false;
+                        return ret;
+                }
+                vnode->pmo_cap = pmo_cap;
+        }
+
+        ipc_set_msg_return_cap_num(ipc_msg, 1);
+        ipc_set_msg_cap(ipc_msg, 0, vnode->pmo_cap);
+        *ret_with_cap = true;
         return 0;
+
         /* Lab 5 TODO End */
 }
 
