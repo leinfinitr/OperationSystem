@@ -211,38 +211,50 @@ int fs_wrapper_close(badge_t client_badge, ipc_msg_t *ipc_msg,
         /* Lab 5 TODO End */
 }
 
+static int __fs_wrapper_read_core(struct server_entry *server_entry, void *buf,
+                                  size_t size, off_t offset)
+{
+        int ret = 0;
+        struct fs_vnode *vnode = server_entry->vnode;
+
+        pthread_rwlock_rdlock(&vnode->rwlock);
+
+        if (offset >= vnode->size) {
+                goto out;
+        }
+
+        if (offset + size > vnode->size) {
+                size = vnode->size - offset;
+        }
+
+        size = size <= READ_SIZE_MAX ? size : READ_SIZE_MAX;
+
+        void *operator= vnode->private;
+        ret = server_ops.read(operator, offset, size, buf);
+
+out:
+        pthread_rwlock_unlock(&vnode->rwlock);
+        return ret;
+}
+
 int fs_wrapper_read(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
         /* Lab 5 TODO Begin */
         int fd = fr->read.fd;
+        char *buf = (void *)fr;
+        off_t offset = (off_t)server_entrys[fd]->offset;
+        size_t size = (size_t)fr->read.count;
+        int ret = 0;
+
         pthread_mutex_lock(&server_entrys[fd]->lock);
 
-        struct server_entry *entry = server_entrys[fd];
-        struct fs_vnode *vnode = entry->vnode;
-        pthread_rwlock_rdlock(&vnode->rwlock);
+        ret = __fs_wrapper_read_core(server_entrys[fd], buf, size, offset);
 
-        off_t vnode_size = vnode->size;
-        off_t offset = entry->offset;
-        if (offset >= vnode_size) {
-                pthread_rwlock_unlock(&vnode->rwlock);
-                pthread_mutex_unlock(&entry->lock);
-                return 0;
+        if (ret > 0) {
+                server_entrys[fd]->offset += ret;
         }
 
-        size_t size = fr->read.count;
-        if (offset + size > vnode_size) {
-                size = vnode_size - offset;
-        }
-        size = size <= READ_SIZE_MAX ? size : READ_SIZE_MAX;
-
-        void *operator= vnode->private;
-        char *buf = (void *)fr;
-        int ret = server_ops.read(operator, offset, size, buf);
-        if (ret > 0)
-                entry->offset += ret;
-
-        pthread_rwlock_unlock(&vnode->rwlock);
-        pthread_mutex_unlock(&entry->lock);
+        pthread_mutex_unlock(&server_entrys[fd]->lock);
         return ret;
         /* Lab 5 TODO End */
 }
@@ -250,12 +262,72 @@ int fs_wrapper_read(ipc_msg_t *ipc_msg, struct fs_request *fr)
 int fs_wrapper_pread(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
         /* Lab 5 TODO Begin (OPTIONAL) */
+        int fd = fr->pread.fd;
+        char *buf = (void *)fr;
+        off_t offset = (off_t)fr->pread.offset;
+        size_t size = (size_t)fr->pread.count;
+        int ret = 0;
+
+        if (offset < 0) {
+                return -EINVAL;
+        }
+
+        ret = __fs_wrapper_read_core(server_entrys[fd], buf, size, offset);
+
+        return ret;
         /* Lab 5 TODO End (OPTIONAL) */
+}
+
+static int __fs_wrapper_write_core(struct server_entry *server_entry, void *buf,
+                                   size_t size, off_t offset)
+{
+        int ret = 0;
+        struct fs_vnode *vnode = server_entry->vnode;
+        void *operator= vnode->private;
+        pthread_rwlock_rdlock(&vnode->rwlock);
+
+        if (size == 0) {
+                goto out;
+        }
+
+        size = size <= READ_SIZE_MAX ? size : READ_SIZE_MAX;
+
+        ret = server_ops.write(operator, offset, size, buf);
+
+out:
+        pthread_rwlock_unlock(&vnode->rwlock);
+        return ret;
 }
 
 int fs_wrapper_pwrite(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
         /* Lab 5 TODO Begin (OPTIONAL) */
+        int fd = fr->pwrite.fd;
+        char *buf = (void *)fr + sizeof(struct fs_request);
+        size_t size = (size_t)fr->pwrite.count;
+        off_t offset = (off_t)fr->pwrite.offset;
+        int ret = 0;
+
+        if (offset < 0) {
+                return -EINVAL;
+        }
+
+        pthread_mutex_lock(&server_entrys[fd]->lock);
+
+        if (server_entrys[fd]->flags & O_APPEND) {
+                offset = (off_t)server_entrys[fd]->vnode->size;
+        }
+
+        ret = __fs_wrapper_write_core(server_entrys[fd], buf, size, offset);
+
+        if (ret > 0) {
+                if (offset + size > server_entrys[fd]->vnode->size) {
+                        server_entrys[fd]->vnode->size = (size_t)offset + size;
+                }
+        }
+
+        pthread_mutex_unlock(&server_entrys[fd]->lock);
+        return ret;
         /* Lab 5 TODO End (OPTIONAL) */
 }
 
@@ -263,34 +335,29 @@ int fs_wrapper_write(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
         /* Lab 5 TODO Begin */
         int fd = fr->write.fd;
+        char *buf = (void *)fr + sizeof(struct fs_request);
+        size_t size = (size_t)fr->write.count;
+        off_t offset = (off_t)server_entrys[fd]->offset;
+        int ret = 0;
+
         pthread_mutex_lock(&server_entrys[fd]->lock);
 
-        struct server_entry *entry = server_entrys[fd];
-        struct fs_vnode *vnode = entry->vnode;
-        pthread_rwlock_rdlock(&vnode->rwlock);
-
-        off_t offset = entry->offset;
-        size_t size = fr->write.count;
-        if (size == 0) {
-                pthread_rwlock_unlock(&vnode->rwlock);
-                pthread_mutex_unlock(&entry->lock);
-                return 0;
+        if (server_entrys[fd]->flags & O_APPEND) {
+                offset = (off_t)server_entrys[fd]->vnode->size;
         }
 
-        size = size <= READ_SIZE_MAX ? size : READ_SIZE_MAX;
-
-        void *operator= entry->vnode->private;
-        char *buf = (void *)fr + sizeof(struct fs_request);
-        int ret = server_ops.write(operator, offset, size, buf);
+        ret = __fs_wrapper_write_core(server_entrys[fd], buf, size, offset);
 
         if (ret > 0) {
-                entry->offset += ret;
-                if (entry->offset > vnode->size)
-                        vnode->size = entry->offset;
+                server_entrys[fd]->offset = offset + ret;
+                if (server_entrys[fd]->offset
+                    > server_entrys[fd]->vnode->size) {
+                        server_entrys[fd]->vnode->size =
+                                server_entrys[fd]->offset;
+                }
         }
 
-        pthread_rwlock_unlock(&vnode->rwlock);
-        pthread_mutex_unlock(&entry->lock);
+        pthread_mutex_unlock(&server_entrys[fd]->lock);
         return ret;
         /* Lab 5 TODO End */
 }
@@ -356,7 +423,8 @@ int fs_wrapper_ftruncate(ipc_msg_t *ipc_msg, struct fs_request *fr)
 
         len = fr->ftruncate.length;
 
-        /* The argument len is negative or larger than the maximum file size */
+        /* The argument len is negative or larger than the maximum file
+         * size */
         if (len < 0)
                 return -EINVAL;
 
@@ -788,7 +856,8 @@ int fs_wrapper_mount(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
         /*
          * Mount req should be called only if mounted flag is off,
-         * Normally, only called once after booted during FSM's mount procedure
+         * Normally, only called once after booted during FSM's mount
+         * procedure
          */
         int ret;
         if (mounted) {
