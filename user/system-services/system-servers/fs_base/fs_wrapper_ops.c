@@ -114,348 +114,70 @@ ssize_t default_ssize_t_server_operation(ipc_msg_t *ipc_msg,
         return -1;
 }
 
-// int fs_wrapper_open(badge_t client_badge, ipc_msg_t *ipc_msg,
-//                     struct fs_request *fr)
-// {
-//         /* Lab 5 TODO Begin */
-
-//         /*
-//          * Hint:
-//          *   1. alloc new server_entry
-//          *   2. get/alloc vnode
-//          *   3. associate server_entry with vnode
-//          */
-//         int entry_id = alloc_entry();
-//         if (entry_id < 0) {
-//                 return -EMFILE;
-//         }
-
-//         struct fs_vnode *vnode;
-//         ino_t vnode_id;
-//         off_t vnode_size;
-//         int vnode_type;
-//         void *private;
-//         int new_fd = fr->open.new_fd;
-
-//         fr->open.new_fd = AT_FDROOT;
-//         int ret = server_ops.open(fr->open.pathname,
-//                                   fr->open.flags,
-//                                   fr->open.mode,
-//                                   &vnode_id,
-//                                   &vnode_size,
-//                                   &vnode_type,
-//                                   &private);
-//         if (ret < 0) {
-//                 free_entry(entry_id);
-//                 return ret;
-//         }
-
-//         vnode = get_fs_vnode_by_id(vnode_id);
-//         if (!vnode) {
-//                 vnode = alloc_fs_vnode(
-//                         vnode_id, vnode_type, vnode_size, private);
-//                 if (!vnode) {
-//                         free_entry(entry_id);
-//                         return -ENOMEM;
-//                 }
-//                 list_add(&vnode->node, &fs_vnode_list);
-//         } else {
-//                 inc_ref_fs_vnode(vnode);
-//         }
-
-//         assign_entry(server_entrys[entry_id],
-//                      fr->open.flags,
-//                      0,
-//                      vnode_type,
-//                      fr->open.pathname,
-//                      vnode);
-//         fs_wrapper_set_server_entry(client_badge, fr->open.new_fd, entry_id);
-
-//         return new_fd;
-
-//         /* Lab 5 TODO End */
-// }
-
-// int fs_wrapper_close(badge_t client_badge, ipc_msg_t *ipc_msg,
-//                      struct fs_request *fr)
-// {
-//         /* Lab 5 TODO Begin */
-//         int fd = fr->close.fd;
-//         if (fd_type_invalid(fd, true) && fd_type_invalid(fd, false)) {
-//                 return -ENOENT;
-//         }
-
-//         struct server_entry *entry = server_entrys[fd];
-//         if (entry->refcnt == 0) {
-//                 return -EBADF;
-//         }
-
-//         if (entry->refcnt == 1) {
-//                 free_entry(fd);
-//         } else {
-//                 entry->refcnt--;
-//         }
-
-//         fs_wrapper_clear_server_entry(client_badge, fd);
-
-//         return 0;
-//         /* Lab 5 TODO End */
-// }
-
-// int fs_wrapper_read(ipc_msg_t *ipc_msg, struct fs_request *fr)
-// {
-//         /* Lab 5 TODO Begin */
-//         if (server_entrys[fr->read.fd]->offset
-//             >= server_entrys[fr->read.fd]->vnode->size) {
-//                 return 0;
-//         }
-
-//         if (server_entrys[fr->read.fd]->offset + fr->read.count
-//             > server_entrys[fr->read.fd]->vnode->size) {
-//                 fr->read.count = server_entrys[fr->read.fd]->vnode->size
-//                                  - server_entrys[fr->read.fd]->offset;
-//         }
-
-//         void *operator= server_entrys[fr->read.fd]->vnode->private;
-//         ssize_t ret = server_ops.read(operator,
-//                                       server_entrys[fr->read.fd]->offset,
-//                                       fr->read.count,
-//                                       ipc_get_msg_data(ipc_msg));
-//         if (ret > 0) {
-//                 server_entrys[fr->read.fd]->offset += ret;
-//         }
-
-//         return ret;
-//         /* Lab 5 TODO End */
-// }
-
-// int fs_wrapper_pread(ipc_msg_t *ipc_msg, struct fs_request *fr)
-// {
-//         /* Lab 5 TODO Begin (OPTIONAL) */
-//         if (fr->pread.offset >= server_entrys[fr->pread.fd]->vnode->size) {
-//                 return 0;
-//         }
-
-//         if (fr->pread.offset + fr->pread.count
-//             > server_entrys[fr->pread.fd]->vnode->size) {
-//                 fr->pread.count = server_entrys[fr->pread.fd]->vnode->size
-//                                   - fr->pread.offset;
-//         }
-
-//         void *operator= server_entrys[fr->pread.fd]->vnode->private;
-//         ssize_t ret = server_ops.read(operator,
-//                                       fr->pread.offset,
-//                                       fr->pread.count,
-//                                       ipc_get_msg_data(ipc_msg));
-//         return ret;
-//         /* Lab 5 TODO End (OPTIONAL) */
-// }
-
-// int fs_wrapper_pwrite(ipc_msg_t *ipc_msg, struct fs_request *fr)
-// {
-//         /* Lab 5 TODO Begin (OPTIONAL) */
-//         void *operator= server_entrys[fr->pwrite.fd]->vnode->private;
-//         ssize_t ret = server_ops.write(operator,
-//                                        fr->pwrite.offset,
-//                                        fr->pwrite.count,
-//                                        ipc_get_msg_data(ipc_msg));
-//         return ret;
-//         /* Lab 5 TODO End (OPTIONAL) */
-// }
-
-// int fs_wrapper_write(ipc_msg_t *ipc_msg, struct fs_request *fr)
-// {
-//         /* Lab 5 TODO Begin */
-//         if (server_entrys[fr->write.fd]->flags & O_APPEND) {
-//                 server_entrys[fr->write.fd]->offset =
-//                         server_entrys[fr->write.fd]->vnode->size;
-//         }
-
-//         void *operator= server_entrys[fr->write.fd]->vnode->private;
-//         ssize_t ret = server_ops.write(operator,
-//                                        server_entrys[fr->write.fd]->offset,
-//                                        fr->write.count,
-//                                        ipc_get_msg_data(ipc_msg));
-//         if (ret > 0) {
-//                 server_entrys[fr->write.fd]->offset += ret;
-//         }
-
-//         return ret;
-//         /* Lab 5 TODO End */
-// }
-
-// int fs_wrapper_lseek(ipc_msg_t *ipc_msg, struct fs_request *fr)
-// {
-//         /* Lab 5 TODO Begin */
-
-//         /*
-//          * Hint: possible values of whence:
-//          *   SEEK_SET 0
-//          *   SEEK_CUR 1
-//          *   SEEK_END 2
-//          */
-//         int fd = fr->lseek.fd;
-//         if (fd_type_invalid(fd, true)) {
-//                 return -EBADF;
-//         }
-//         unsigned long offset = fr->lseek.offset;
-//         int whence = fr->lseek.whence;
-//         off_t ret = -1;
-
-//         switch (whence) {
-//         case SEEK_SET:
-//                 server_entrys[fd]->offset = offset;
-//                 ret = server_entrys[fd]->offset;
-//                 break;
-//         case SEEK_CUR:
-//                 server_entrys[fd]->offset += offset;
-//                 ret = server_entrys[fd]->offset;
-//                 break;
-//         case SEEK_END:
-//                 server_entrys[fd]->offset =
-//                         server_entrys[fd]->vnode->size + offset;
-//                 ret = server_entrys[fd]->offset;
-//                 break;
-//         default:
-//                 return -EINVAL;
-//         }
-
-//         return ret;
-
-//         /* Lab 5 TODO End */
-// }
-
 int fs_wrapper_open(badge_t client_badge, ipc_msg_t *ipc_msg,
                     struct fs_request *fr)
 {
-        int new_fd;
-        char *path;
-        int flags;
-        int mode;
-        int entry_id;
-        int ret;
-
-        ino_t vnode_id;
-        int vnode_type;
-        off_t vnode_size;
-        void *vnode_private;
-
-        struct fs_vnode *vnode;
-
-        off_t entry_off;
-
-        /* Prase arguments from fr */
-        new_fd = fr->open.new_fd; /* Store fr->fd (newly generated client fd) to
-                                     new_fd temporarly */
-        path = fr->open.pathname;
-        flags = fr->open.flags;
-        mode = fr->open.mode;
-
-        fs_debug_trace_fswrapper(
-                "new_fd=%d, flags=0%o, path=%s\n", new_fd, flags, path);
+        /* Lab 5 TODO Begin */
 
         /*
-         * If O_CREAT and O_EXCL are set, open() shall fail if the file exists.
+         * Hint:
+         *   1. alloc new server_entry
+         *   2. get/alloc vnode
+         *   3. associate server_entry with vnode
          */
-        if ((flags & O_CREAT) && (flags & O_EXCL)) {
-                struct stat st;
-                ret = server_ops.fstatat(path, &st, AT_SYMLINK_NOFOLLOW);
-                if (ret == 0) {
-                        return -EEXIST;
-                }
-        }
-
-        fr->open.new_fd = AT_FDROOT;
-        ret = server_ops.open(path,
-                              flags,
-                              mode,
-                              &vnode_id,
-                              &vnode_size,
-                              &vnode_type,
-                              &vnode_private);
-        if (ret != 0) {
-                fs_debug_error("ret = %d\n", ret);
-                return ret;
-        }
-
-        fs_debug_trace_fswrapper(
-                "vnode_id=%ld, vnode_size=0x%lx, vnode_type=%d\n",
-                vnode_id,
-                vnode_size,
-                vnode_type);
-
-        if ((flags & O_DIRECTORY) && vnode_type != FS_NODE_DIR) {
-                server_ops.close(
-                        vnode_private, (vnode_type == FS_NODE_DIR), true);
-                return -ENOTDIR;
-        }
-
-        if ((flags & (O_RDWR | O_WRONLY)) && vnode_type == FS_NODE_DIR) {
-                server_ops.close(
-                        vnode_private, (vnode_type == FS_NODE_DIR), true);
-                return -ENOTDIR;
-        }
-
-        if (flags & O_NOCTTY) {
-                BUG_ON(1);
-        }
-
-        if (!(flags & (O_RDWR | O_WRONLY)) && (flags & (O_TRUNC | O_APPEND))) {
-                server_ops.close(
-                        vnode_private, (vnode_type == FS_NODE_DIR), true);
-                return -EACCES;
-        }
-
-        if ((flags & O_TRUNC) && (vnode_type == FS_NODE_REG)) {
-                server_ops.ftruncate(vnode_private, 0);
-        }
-
-        entry_id = alloc_entry();
+        int entry_id = alloc_entry();
         if (entry_id < 0) {
-                server_ops.close(
-                        vnode_private, (vnode_type == FS_NODE_DIR), true);
                 return -EMFILE;
         }
 
-        if ((flags & O_APPEND) && (vnode_type == FS_NODE_REG)) {
+        struct fs_vnode *vnode;
+        ino_t vnode_id;
+        off_t vnode_size;
+        int vnode_type;
+        void *private;
+        int new_fd = fr->open.new_fd;
+
+        fr->open.new_fd = AT_FDROOT;
+        int ret = server_ops.open(fr->open.pathname,
+                                  fr->open.flags,
+                                  fr->open.mode,
+                                  &vnode_id,
+                                  &vnode_size,
+                                  &vnode_type,
+                                  &private);
+        if (ret < 0) {
+                free_entry(entry_id);
+                return ret;
+        }
+
+        off_t entry_off;
+        if ((fr->open.flags & O_APPEND) && (vnode_type == FS_NODE_REG)) {
                 entry_off = vnode_size;
         } else {
                 entry_off = 0;
         }
 
         vnode = get_fs_vnode_by_id(vnode_id);
-        if (NULL != vnode) {
-                /* Assign new entry to existing vnode, close newly opened struct
-                 */
-                inc_ref_fs_vnode(vnode);
-                assign_entry(server_entrys[entry_id],
-                             flags,
-                             entry_off,
-                             1,
-                             (void *)strdup(path),
-                             vnode);
-                server_ops.close(
-                        vnode_private, (vnode_type == FS_NODE_DIR), false);
-        } else {
+        if (!vnode) {
                 vnode = alloc_fs_vnode(
-                        vnode_id, vnode_type, vnode_size, vnode_private);
-                if (vnode == NULL) {
-                        server_ops.close(vnode_private,
-                                         (vnode_type == FS_NODE_DIR),
-                                         true);
+                        vnode_id, vnode_type, vnode_size, private);
+                if (!vnode) {
+                        server_ops.close(
+                                private, (vnode_type == FS_NODE_DIR), true);
                         free_entry(entry_id);
                         return -ENOMEM;
                 }
                 push_fs_vnode(vnode);
-                assign_entry(server_entrys[entry_id],
-                             flags,
-                             entry_off,
-                             1,
-                             (void *)strdup(path),
-                             vnode);
+        } else {
+                inc_ref_fs_vnode(vnode);
         }
 
-        /* After server handling the open request, mapping new_fd to fid */
+        assign_entry(server_entrys[entry_id],
+                     fr->open.flags,
+                     entry_off,
+                     1,
+                     (void *)strdup(fr->open.pathname),
+                     vnode);
         ret = fs_wrapper_set_server_entry(client_badge, new_fd, entry_id);
         if (ret < 0) {
                 dec_ref_fs_vnode(vnode);
@@ -463,391 +185,130 @@ int fs_wrapper_open(badge_t client_badge, ipc_msg_t *ipc_msg,
                 return ret;
         }
 
-        fs_debug_trace_fswrapper("entry_id=%d\n", entry_id);
-
         return new_fd;
+        /* Lab 5 TODO End */
 }
 
 int fs_wrapper_close(badge_t client_badge, ipc_msg_t *ipc_msg,
                      struct fs_request *fr)
 {
-        int entry_id;
-        struct fs_vnode *vnode;
-        fs_debug_trace_fswrapper("fd=%d\n", fr->close.fd);
-
-        /* Parsing and check arguments */
-        entry_id = fr->close.fd;
-        if (fd_type_invalid(entry_id, true)
-            && fd_type_invalid(entry_id, false)) {
-                fs_debug_error("fd_type_invalid\n");
+        /* Lab 5 TODO Begin */
+        int fd = fr->close.fd;
+        if (fd_type_invalid(fd, true) && fd_type_invalid(fd, false)) {
                 return -ENOENT;
         }
 
-        vnode = server_entrys[entry_id]->vnode;
-        server_entrys[entry_id]->refcnt--;
-        if (server_entrys[entry_id]->refcnt == 0) {
-                free_entry(entry_id);
-                fs_wrapper_clear_server_entry(client_badge, entry_id);
+        struct server_entry *entry = server_entrys[fd];
+        struct fs_vnode *vnode = entry->vnode;
+        entry->refcnt--;
+        if (entry->refcnt == 0) {
+                free_entry(fd);
+                fs_wrapper_clear_server_entry(client_badge, fd);
                 dec_ref_fs_vnode(vnode);
         }
 
-        /*
-         * To preserve page cache even after we close the file,
-         * we don't revoke vnode when user call close().
-         */
-
-        /* Revoke vnode, if refcnt == 0 */
-
         return 0;
-}
-
-static int __fs_wrapper_read_core(struct server_entry *server_entry, void *buf,
-                                  size_t size, off_t offset)
-{
-        int ret;
-        char *page_buf;
-        int fptr, page_idx, page_off, copy_size;
-        struct fs_vnode *vnode;
-        void *operator;
-
-        ret = 0;
-        vnode = server_entry->vnode;
-        pthread_rwlock_rdlock(&vnode->rwlock);
-        operator= vnode->private;
-
-        /* Checking open flags: reading file opened as write-only */
-        if (server_entry->flags & O_WRONLY) {
-                ret = -EBADF;
-                goto out;
-        }
-
-        /* Do not read a directory directly */
-        if (vnode->type == FS_NODE_DIR) {
-                ret = -EISDIR;
-                goto out;
-        }
-
-        /*
-         * If offset is already outside the file,
-         *      do nothing and return 0
-         */
-        if (offset >= vnode->size) {
-                goto out;
-        }
-
-        /*
-         * If offset + size > file_size,
-         * 	change size to (file_size - offset).
-         */
-        if (offset + size > vnode->size) {
-                size = vnode->size - offset;
-        }
-
-        /**
-         * read(2):
-         * On Linux, read() (and similar system calls) will transfer at most
-         * 0x7ffff000 (2,147,479,552) bytes, returning the number of bytes
-         * actually transferred.  (This is true on both 32-bit and 64-bit
-         * systems.)
-         */
-        size = size <= READ_SIZE_MAX ? size : READ_SIZE_MAX;
-
-        /*
-         * Server-side read operation should implement like:
-         * - Base: read file from `offset` for `size` length,
-         *      if it touch a file ending, return content from offset to end
-         *      and return bytes read.
-         */
-        if (!using_page_cache) {
-                ret = server_ops.read(operator, offset, size, buf);
-        } else {
-                for (fptr = offset; fptr < offset + size;
-                     fptr = ROUND_DOWN(fptr, PAGE_SIZE) + PAGE_SIZE) {
-                        page_idx = fptr / PAGE_SIZE;
-                        page_off = fptr - ROUND_DOWN(fptr, PAGE_SIZE);
-                        copy_size =
-                                MIN(PAGE_SIZE - page_off, offset + size - fptr);
-
-                        /* get-read-put */
-                        page_buf = page_cache_get_block_or_page(
-                                vnode->page_cache, page_idx, -1, READ);
-                        memcpy(buf + fptr - offset,
-                               page_buf + page_off,
-                               copy_size);
-                        page_cache_put_block_or_page(
-                                vnode->page_cache, page_idx, -1, READ);
-
-                        ret += copy_size;
-                }
-        }
-
-out:
-        pthread_rwlock_unlock(&vnode->rwlock);
-        return ret;
+        /* Lab 5 TODO End */
 }
 
 int fs_wrapper_read(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
-        int fd;
-        char *buf;
-        off_t offset;
-        size_t size;
-        int ret;
-
-        ret = 0;
-        fd = fr->read.fd;
-        buf = (void *)fr;
-        size = (size_t)fr->read.count;
-        fs_debug_trace_fswrapper("entry_id=%d\n", fd);
-
-        /**
-         * Check to prevent IPC buffer overflow
-         */
-        if (size > FS_SINGLE_REQ_READ_BUF_SIZE) {
-                return -EINVAL;
-        }
-
+        /* Lab 5 TODO Begin */
+        int fd = fr->read.fd;
         pthread_mutex_lock(&server_entrys[fd]->lock);
 
-        offset = (off_t)server_entrys[fd]->offset;
+        struct server_entry *entry = server_entrys[fd];
+        struct fs_vnode *vnode = entry->vnode;
+        pthread_rwlock_rdlock(&vnode->rwlock);
 
-        ret = __fs_wrapper_read_core(server_entrys[fd], buf, size, offset);
-
-        /* Update server_entry and vnode metadata */
-        if (ret > 0) {
-                server_entrys[fd]->offset += ret;
+        off_t vnode_size = vnode->size;
+        off_t offset = entry->offset;
+        if (offset >= vnode_size) {
+                pthread_rwlock_unlock(&vnode->rwlock);
+                pthread_mutex_unlock(&entry->lock);
+                return 0;
         }
 
-        pthread_mutex_unlock(&server_entrys[fd]->lock);
+        size_t size = fr->read.count;
+        if (offset + size > vnode_size) {
+                size = vnode_size - offset;
+        }
+        size = size <= READ_SIZE_MAX ? size : READ_SIZE_MAX;
+
+        void *operator= vnode->private;
+        char *buf = (void *)fr;
+        int ret = server_ops.read(operator, offset, size, buf);
+        if (ret > 0)
+                entry->offset += ret;
+
+        pthread_rwlock_unlock(&vnode->rwlock);
+        pthread_mutex_unlock(&entry->lock);
         return ret;
+        /* Lab 5 TODO End */
 }
 
 int fs_wrapper_pread(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
-        int fd;
-        char *buf;
-        off_t offset;
-        size_t size;
-        int ret;
-
-        ret = 0;
-        fd = fr->pread.fd;
-        buf = (void *)fr;
-        size = (size_t)fr->pread.count;
-        offset = (off_t)fr->pread.offset;
-        fs_debug_trace_fswrapper("entry_id=%d\n", fd);
-
-        if (offset < 0) {
-                return -EINVAL;
-        }
-
-        /**
-         * Check to prevent IPC buffer overflow
-         */
-        if (size > FS_SINGLE_REQ_READ_BUF_SIZE) {
-                return -EINVAL;
-        }
-
-        /**
-         * pread is a read-only operation on server_entry, so there
-         * should be no need to lock server_entry.
-         */
-        ret = __fs_wrapper_read_core(server_entrys[fd], buf, size, offset);
-
-        return ret;
-}
-
-static int __fs_wrapper_write_core(struct server_entry *server_entry, void *buf,
-                                   size_t size, off_t offset)
-{
-        int ret;
-        char *block_buf;
-        int fptr, page_idx, block_idx, block_off, copy_size;
-        struct fs_vnode *vnode;
-        void *operator;
-
-        ret = 0;
-        vnode = server_entry->vnode;
-        pthread_rwlock_rdlock(&vnode->rwlock);
-        operator= vnode->private;
-
-        /* Checking open flags: writing file opened as read-only */
-        if (server_entry->flags & O_RDONLY) {
-                ret = -EBADF;
-                goto out;
-        }
-
-        /*
-         * If size == 0, do nothing and return 0
-         * Even the offset is outside of the file, inode size is not changed!
-         */
-        if (size == 0) {
-                goto out;
-        }
-
-        /** see __fs_wrapper_read_core */
-        size = size <= READ_SIZE_MAX ? size : READ_SIZE_MAX;
-
-        /*
-         * Server-side write operation should implement like:
-         * - Base: write file and return bytes written
-         * - If offset is outside the file (notice size=0 is handled)
-         *      Filling '\0' until offset pos, then append file
-         */
-
-        if (!using_page_cache)
-                ret = server_ops.write(operator, offset, size, buf);
-        else {
-                if (offset + size > vnode->size) {
-                        vnode->size = offset + size;
-                        server_ops.ftruncate(operator, offset + size);
-                }
-                for (fptr = offset; fptr < offset + size;
-                     fptr = ROUND_DOWN(fptr, CACHED_BLOCK_SIZE)
-                            + CACHED_BLOCK_SIZE) {
-                        page_idx = fptr / CACHED_PAGE_SIZE;
-                        block_idx = (fptr - ROUND_DOWN(fptr, PAGE_SIZE))
-                                    / CACHED_BLOCK_SIZE;
-                        block_off = fptr - ROUND_DOWN(fptr, CACHED_BLOCK_SIZE);
-                        copy_size = MIN(CACHED_BLOCK_SIZE - block_off,
-                                        offset + size - fptr);
-
-                        /* get-write-put */
-                        block_buf = page_cache_get_block_or_page(
-                                vnode->page_cache, page_idx, block_idx, WRITE);
-                        memcpy(block_buf + block_off,
-                               buf + fptr - offset,
-                               copy_size);
-                        page_cache_put_block_or_page(
-                                vnode->page_cache, page_idx, block_idx, WRITE);
-
-                        ret += copy_size;
-                }
-        }
-
-out:
-        pthread_rwlock_unlock(&vnode->rwlock);
-        return ret;
+        /* Lab 5 TODO Begin (OPTIONAL) */
+        /* Lab 5 TODO End (OPTIONAL) */
 }
 
 int fs_wrapper_pwrite(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
-        int fd;
-        char *buf;
-        size_t size;
-        off_t offset;
-        int ret;
-
-        ret = 0;
-        fd = fr->pwrite.fd;
-        buf = (void *)fr + sizeof(struct fs_request);
-        size = (size_t)fr->pwrite.count;
-        offset = (off_t)fr->pwrite.offset;
-        fs_debug_trace_fswrapper("entry_id=%d\n", fd);
-
-        if (offset < 0) {
-                return -EINVAL;
-        }
-
-        /**
-         * Check to prevent IPC buffer overflow
-         */
-        if (size > FS_SINGLE_REQ_WRITE_BUF_SIZE) {
-                return -EINVAL;
-        }
-
-        pthread_mutex_lock(&server_entrys[fd]->lock);
-
-        /*
-         * pwrite(2): POSIX requires that opening a file with the O_APPEND flag
-         * should have no affect on the location at which pwrite() writes data.
-         * However, on Linux, if a file is opened with O_APPEND, pwrite()
-         * appends data to the end of the file, regardless of the value of
-         * offset.
-         */
-        if (server_entrys[fd]->flags & O_APPEND) {
-                offset = (off_t)server_entrys[fd]->vnode->size;
-        }
-
-        ret = __fs_wrapper_write_core(server_entrys[fd], buf, size, offset);
-
-        /* pwrite should not affect offset, but must update file size */
-        if (ret > 0) {
-                if (offset + size > server_entrys[fd]->vnode->size) {
-                        server_entrys[fd]->vnode->size = (size_t)offset + size;
-                }
-        }
-
-        pthread_mutex_unlock(&server_entrys[fd]->lock);
-        return ret;
+        /* Lab 5 TODO Begin (OPTIONAL) */
+        /* Lab 5 TODO End (OPTIONAL) */
 }
 
 int fs_wrapper_write(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
-        int fd;
-        char *buf;
-        size_t size;
-        off_t offset;
-        int ret;
-        ret = 0;
-        fd = fr->write.fd;
-        buf = (void *)fr + sizeof(struct fs_request);
-        size = (size_t)fr->write.count;
-        fs_debug_trace_fswrapper("entry_id=%d\n", fd);
-
-        /**
-         * Check to prevent IPC buffer overflow
-         */
-        if (size > FS_SINGLE_REQ_WRITE_BUF_SIZE) {
-                return -EINVAL;
-        }
-
+        /* Lab 5 TODO Begin */
+        int fd = fr->write.fd;
         pthread_mutex_lock(&server_entrys[fd]->lock);
 
-        offset = (off_t)server_entrys[fd]->offset;
+        struct server_entry *entry = server_entrys[fd];
+        struct fs_vnode *vnode = entry->vnode;
+        pthread_rwlock_rdlock(&vnode->rwlock);
 
-        /*
-         * POSIX: Before each write(2), the file offset is positioned at the end
-         * of the file, as if with lseek(2).
-         */
-        if (server_entrys[fd]->flags & O_APPEND) {
-                offset = (off_t)server_entrys[fd]->vnode->size;
+        off_t offset = entry->offset;
+        size_t size = fr->write.count;
+        if (size == 0) {
+                pthread_rwlock_unlock(&vnode->rwlock);
+                pthread_mutex_unlock(&entry->lock);
+                return 0;
         }
 
-        ret = __fs_wrapper_write_core(server_entrys[fd], buf, size, offset);
+        size = size <= READ_SIZE_MAX ? size : READ_SIZE_MAX;
 
-        /* Update server_entry and vnode metadata */
+        void *operator= entry->vnode->private;
+        char *buf = (void *)fr + sizeof(struct fs_request);
+        int ret = server_ops.write(operator, offset, size, buf);
+
         if (ret > 0) {
-                /*
-                 * POSIX: Before each write(2), the file offset is positioned at
-                 * the end of the file, as if with lseek(2). The adjustment of
-                 * the file offset and the write operation are performed as an
-                 * atomic step. So if write operation failed, the file
-                 * offset(and file size) is not changed. (This is also applies
-                 * to non O_APPEND write(2)).
-                 */
-                server_entrys[fd]->offset = offset + ret;
-                if (server_entrys[fd]->offset
-                    > server_entrys[fd]->vnode->size) {
-                        server_entrys[fd]->vnode->size =
-                                server_entrys[fd]->offset;
-                }
+                entry->offset += ret;
+                if (entry->offset > vnode->size)
+                        vnode->size = entry->offset;
         }
 
-        pthread_mutex_unlock(&server_entrys[fd]->lock);
+        pthread_rwlock_unlock(&vnode->rwlock);
+        pthread_mutex_unlock(&entry->lock);
         return ret;
+        /* Lab 5 TODO End */
 }
 
 int fs_wrapper_lseek(ipc_msg_t *ipc_msg, struct fs_request *fr)
 {
-        int fd;
-        off_t offset;
-        int whence;
-        off_t target_off;
+        /* Lab 5 TODO Begin */
 
-        fd = fr->lseek.fd;
-        offset = fr->lseek.offset;
-        whence = fr->lseek.whence;
+        /*
+         * Hint: possible values of whence:
+         *   SEEK_SET 0
+         *   SEEK_CUR 1
+         *   SEEK_END 2
+         */
+        int fd = fr->lseek.fd;
+        off_t offset = fr->lseek.offset;
+        int whence = fr->lseek.whence;
+        off_t target_off;
 
         switch (whence) {
         case SEEK_SET: {
@@ -862,7 +323,6 @@ int fs_wrapper_lseek(ipc_msg_t *ipc_msg, struct fs_request *fr)
                 target_off = server_entrys[fd]->vnode->size + offset;
                 break;
         default: {
-                printf("%s: %d Not impelemented yet\n", __func__, whence);
                 target_off = -1;
                 break;
         }
@@ -874,6 +334,7 @@ int fs_wrapper_lseek(ipc_msg_t *ipc_msg, struct fs_request *fr)
         fr->lseek.ret = target_off;
 
         return 0;
+        /* Lab 5 TODO End */
 }
 
 int fs_wrapper_ftruncate(ipc_msg_t *ipc_msg, struct fs_request *fr)
@@ -1183,56 +644,28 @@ int fs_wrapper_fmap(badge_t client_badge, ipc_msg_t *ipc_msg,
         UNUSED(offset);
 
         /* Lab 5 TODO Begin */
-        // ret = fmap_area_insert(
-        //         client_badge, addr, length, vnode, offset, flags, prot);
-        // if (ret < 0) {
-        //         *ret_with_cap = false;
-        //         return ret;
-        // }
-
-        // *ret_with_cap = true;
-        // if (vnode->pmo_cap == -1) {
-        //         pmo_cap = usys_create_pmo(vnode->size, PMO_FILE);
-        //         if (pmo_cap < 0) {
-        //                 ret = pmo_cap;
-        //                 fmap_area_remove(client_badge, (vaddr_t)addr,
-        //                 length); *ret_with_cap = false; return ret;
-        //         }
-        //         vnode->pmo_cap = pmo_cap;
-        // }
-
-        // ipc_set_msg_return_cap_num(ipc_msg, 1);
-        // ipc_set_msg_cap(ipc_msg, 0, vnode->pmo_cap);
-        // *ret_with_cap = true;
-        // return 0;
         ret = fmap_area_insert(
                 client_badge, (vaddr_t)addr, length, vnode, offset, flags, prot);
         if (ret < 0) {
-                goto out_fail;
+                *ret_with_cap = false;
+                return ret;
         }
 
-        /* Step: Create a PMO_FILE for file, if not created */
         if (vnode->pmo_cap == -1) {
                 pmo_cap = usys_create_pmo(vnode->size, PMO_FILE);
                 if (pmo_cap < 0) {
                         ret = pmo_cap;
-                        goto out_remove_mapping;
+                        fmap_area_remove(client_badge, (vaddr_t)addr, length);
+                        *ret_with_cap = false;
+                        return ret;
                 }
                 vnode->pmo_cap = pmo_cap;
         }
 
-        /* Step: Send PMO_FILE back to client side */
         ipc_set_msg_return_cap_num(ipc_msg, 1);
         ipc_set_msg_cap(ipc_msg, 0, vnode->pmo_cap);
         *ret_with_cap = true;
-
         return 0;
-out_remove_mapping:
-        fmap_area_remove(client_badge, (vaddr_t)addr, length);
-out_fail:
-        *ret_with_cap = false;
-        return ret;
-
         /* Lab 5 TODO End */
 }
 

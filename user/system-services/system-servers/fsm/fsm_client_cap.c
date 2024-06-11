@@ -21,42 +21,20 @@ struct list_head fsm_client_cap_table;
 int fsm_set_client_cap(badge_t client_badge, cap_t cap)
 {
         /* Lab 5 TODO Begin */
-        // struct fsm_client_cap_node *n;
-        // for_each_in_list (
-        //         n, struct fsm_client_cap_node, node, &fsm_client_cap_table) {
-        //         if (n->client_badge == client_badge) {
-        //                 if (n->cap_num < 16) {
-        //                         n->cap_table[n->cap_num] = cap;
-        //                         n->cap_num++;
-        //                         return n->cap_num - 1;
-        //                 } else {
-        //                         return -1;
-        //                 }
-        //         }
-        // }
-        // n = malloc(sizeof(struct fsm_client_cap_node));
-        // if (n == NULL) {
-        //         return -ENOMEM;
-        // }
-        // n->client_badge = client_badge;
-        // n->cap_table[0] = cap;
-        // n->cap_num = 1;
-        // list_add(&n->node, &fsm_client_cap_table);
         struct fsm_client_cap_node *n;
-
         for_each_in_list (
                 n, struct fsm_client_cap_node, node, &fsm_client_cap_table) {
                 if (n->client_badge == client_badge) {
-                        /* Client already visited */
-                        BUG_ON(n->cap_num >= 16);
-                        n->cap_table[n->cap_num] = cap;
-                        n->cap_num++;
-                        return n->cap_num - 1;
+                        if (n->cap_num < 16) {
+                                n->cap_table[n->cap_num] = cap;
+                                n->cap_num++;
+                                return n->cap_num - 1;
+                        } else {
+                                return -1;
+                        }
                 }
         }
-
-        /* Client is not visited, create a new fsm_client_cap_node */
-        n = (struct fsm_client_cap_node *)malloc(sizeof(*n));
+        n = malloc(sizeof(struct fsm_client_cap_node));
         if (n == NULL) {
                 return -ENOMEM;
         }
@@ -64,9 +42,7 @@ int fsm_set_client_cap(badge_t client_badge, cap_t cap)
         memset(n->cap_table, 0, sizeof(n->cap_table));
         n->cap_table[0] = cap;
         n->cap_num = 1;
-
         list_append(&n->node, &fsm_client_cap_table);
-
         /* Lab 5 TODO End */
         return 0;
 }
@@ -75,29 +51,17 @@ int fsm_set_client_cap(badge_t client_badge, cap_t cap)
 int fsm_get_client_cap(badge_t client_badge, cap_t cap)
 {
         /* Lab 5 TODO Begin */
-        // struct fsm_client_cap_node *n;
-        // for_each_in_list (
-        //         n, struct fsm_client_cap_node, node, &fsm_client_cap_table) {
-        //         if (n->client_badge == client_badge) {
-        //                 for (int i = 0; i < n->cap_num; i++) {
-        //                         if (n->cap_table[i] == cap) {
-        //                                 return i;
-        //                         }
-        //                 }
-        //         }
-        // }
         struct fsm_client_cap_node *n;
-        int i;
-
         for_each_in_list (
-                n, struct fsm_client_cap_node, node, &fsm_client_cap_table)
-                if (n->client_badge == client_badge)
-                        for (i = 0; i < n->cap_num; i++)
-                                if (n->cap_table[i] == cap)
+                n, struct fsm_client_cap_node, node, &fsm_client_cap_table) {
+                if (n->client_badge == client_badge) {
+                        for (int i = 0; i < n->cap_num; i++) {
+                                if (n->cap_table[i] == cap) {
                                         return i;
-
-        return -1;
-
+                                }
+                        }
+                }
+        }
         /* Lab 5 TODO End */
         return -1;
 }
