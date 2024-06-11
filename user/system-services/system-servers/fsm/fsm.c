@@ -142,13 +142,26 @@ int fsm_mount_fs(const char *path, const char *mount_point)
 
         /* Lab 5 TODO Begin */
         /* Connect to the FS that we mount. */
-        ipc_struct_t *fs_ipc_struct = ipc_register_client(fs_cap);
-        if (fs_ipc_struct == NULL) {
+        // ipc_struct_t *fs_ipc_struct = ipc_register_client(fs_cap);
+        // if (fs_ipc_struct == NULL) {
+        //         pthread_rwlock_unlock(&mount_point_infos_rwlock);
+        //         goto out;
+        // }
+        // mp_node->_fs_ipc_struct = fs_ipc_struct;
+        // strlcpy(mp_node->path, mount_point, sizeof(mp_node->path));
+        // fs_num++;
+        // ret = 0;
+        mp_node->_fs_ipc_struct = ipc_register_client(mp_node->fs_cap);
+
+        if (mp_node->_fs_ipc_struct == NULL) {
+                info("ipc_register_client failed\n");
+                BUG_ON(remove_mount_point(mp_node->path) != 0);
                 pthread_rwlock_unlock(&mount_point_infos_rwlock);
                 goto out;
         }
-        mp_node->_fs_ipc_struct = fs_ipc_struct;
+
         strlcpy(mp_node->path, mount_point, sizeof(mp_node->path));
+
         fs_num++;
         ret = 0;
 
@@ -240,27 +253,80 @@ DEFINE_SERVER_HANDLER(fsm_dispatch)
         switch (fsm_req->req) {
         case FSM_REQ_PARSE_PATH: {
                 /* Lab 5 TODO Begin */
-                // Parses the path to the file accessed in the IPC request and
-                // finds the corresponding file system.
-                char *path = fsm_req->path;
-                mpinfo = get_mount_point(path, strlen(path));
-                if (mpinfo == NULL) {
-                        ret = -ENOENT;
-                        break;
-                }
+                // // Parses the path to the file accessed in the IPC request
+                // and
+                // // finds the corresponding file system.
+                // char *path = fsm_req->path;
+                // mpinfo = get_mount_point(path, strlen(path));
+                // if (mpinfo == NULL) {
+                //         ret = -ENOENT;
+                //         break;
+                // }
+                // mount_id = fsm_get_client_cap(client_badge, mpinfo->fs_cap);
+                // // If the client has already obtained the cap of the
+                // // file system, directly return the parsed file path
+                // if (mount_id >= 0) {
+                //         ret = mount_id;
+                //         break;
+                // }
+                // // Otherwise, FSM will return the cap of the file system
+                // // corresponding to the access path to the client and record
+                // the
+                // // information of the file system cap that the client has
+                // // obtained
+                // ret = fsm_set_client_cap(client_badge, mpinfo->fs_cap);
+                // ret_with_cap = true;
+                pthread_rwlock_rdlock(&mount_point_infos_rwlock);
+                mpinfo = get_mount_point(fsm_req->path, strlen(fsm_req->path));
+                pthread_mutex_lock(&fsm_client_cap_table_lock);
                 mount_id = fsm_get_client_cap(client_badge, mpinfo->fs_cap);
-                // If the client has already obtained the cap of the
-                // file system, directly return the parsed file path
-                if (mount_id >= 0) {
-                        ret = mount_id;
-                        break;
+
+                if (mount_id == -1) {
+                        /* Client not hold corresponding fs_cap */
+
+                        // Newly generated mount_id
+                        mount_id = fsm_set_client_cap(client_badge,
+                                                      mpinfo->fs_cap);
+                        pthread_mutex_unlock(&fsm_client_cap_table_lock);
+
+                        if (mount_id < 0) {
+                                ipc_return(ipc_msg, mount_id);
+                        }
+
+                        // Filling responses
+                        fsm_req->mount_id = mount_id;
+                        strncpy(fsm_req->mount_path,
+                                mpinfo->path,
+                                mpinfo->path_len);
+                        fsm_req->mount_path[mpinfo->path_len] = '\0';
+                        fsm_req->mount_path_len = mpinfo->path_len;
+                        if (fsm_req->mount_path_len == 1)
+                                fsm_req->mount_path_len = 0;
+                        fsm_req->new_cap_flag = 1;
+
+                        // Return with cap
+                        pthread_rwlock_unlock(&mount_point_infos_rwlock);
+                        ipc_set_msg_return_cap_num(ipc_msg, 1);
+                        ipc_set_msg_cap(ipc_msg, 0, mpinfo->fs_cap);
+                        ipc_return_with_cap(ipc_msg, 0);
+                } else {
+                        /* Client holds corresponding fs_cap */
+                        pthread_mutex_unlock(&fsm_client_cap_table_lock);
+                        fsm_req->mount_id = mount_id;
+                        strncpy(fsm_req->mount_path,
+                                mpinfo->path,
+                                mpinfo->path_len);
+                        fsm_req->mount_path[mpinfo->path_len] = '\0';
+                        fsm_req->mount_path_len = mpinfo->path_len;
+                        if (fsm_req->mount_path_len == 1)
+                                fsm_req->mount_path_len = 0;
+                        fsm_req->new_cap_flag = 0;
+
+                        pthread_rwlock_unlock(&mount_point_infos_rwlock);
+                        ipc_return(ipc_msg, 0);
                 }
-                // Otherwise, FSM will return the cap of the file system
-                // corresponding to the access path to the client and record the
-                // information of the file system cap that the client has
-                // obtained
-                ret = fsm_set_client_cap(client_badge, mpinfo->fs_cap);
-                ret_with_cap = true;
+                break;
+
                 /* Lab 5 TODO End */
         }
         case FSM_REQ_MOUNT: {

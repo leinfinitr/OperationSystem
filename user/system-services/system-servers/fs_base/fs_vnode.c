@@ -82,24 +82,50 @@ struct fs_vnode *alloc_fs_vnode(ino_t id, enum fs_vnode_type type, off_t size,
                                 void *private)
 {
         /* Lab 5 TODO Begin */
-        struct fs_vnode *n = malloc(sizeof(struct fs_vnode));
-        if (!n) {
+        // struct fs_vnode *n = malloc(sizeof(struct fs_vnode));
+        // if (!n) {
+        //         return NULL;
+        // }
+        // n->vnode_id = id;
+        // n->type = type;
+        // n->refcnt = 1;
+        // n->size = size;
+        // n->private = private;
+        // pthread_rwlock_init(&n->rwlock, NULL);
+        // n->pmo_cap = -1;
+        // if (using_page_cache) {
+        //         n->page_cache = alloc_page_cache_entity_of_inode(n);
+        // } else {
+        //         n->page_cache = NULL;
+        // }
+        // init_rb_root(&n->node);
+        // return n;
+        struct fs_vnode *ret = (struct fs_vnode *)malloc(sizeof(*ret));
+        if (ret == NULL) {
                 return NULL;
         }
-        n->vnode_id = id;
-        n->type = type;
-        n->refcnt = 1;
-        n->size = size;
-        n->private = private;
-        pthread_rwlock_init(&n->rwlock, NULL);
-        n->pmo_cap = -1;
-        if (using_page_cache) {
-                n->page_cache = alloc_page_cache_entity_of_inode(n);
-        } else {
-                n->page_cache = NULL;
-        }
-        init_rb_root(&n->node);
-        return n;
+
+        /* Filling Initial State */
+        ret->vnode_id = id;
+        ret->type = type;
+        ret->size = size;
+        ret->private = private;
+        fs_debug_trace_fswrapper(
+                "id=%ld, type=%d, size=%ld(0x%lx)\n", id, type, size, size);
+
+        /* Ref Count start as 1 */
+        ret->refcnt = 1;
+
+        ret->pmo_cap = -1;
+
+        /* Create a page cache entity for vnode */
+        if (using_page_cache)
+                ret->page_cache =
+                        new_page_cache_entity_of_inode(ret->vnode_id, ret);
+        pthread_rwlock_init(&ret->rwlock, NULL);
+
+        return ret;
+
         /* Lab 5 TODO End */
 }
 
@@ -117,21 +143,40 @@ void pop_free_fs_vnode(struct fs_vnode *n)
         free(n);
 }
 
+static int comp_vnode_key(const void *key, const struct rb_node *node)
+{
+        struct fs_vnode *vnode = rb_entry(node, struct fs_vnode, node);
+        ino_t vnode_id = *(ino_t *)key;
+
+        if (vnode_id < vnode->vnode_id)
+                return -1;
+        else if (vnode_id > vnode->vnode_id)
+                return 1;
+        else
+                return 0;
+}
+
 struct fs_vnode *get_fs_vnode_by_id(ino_t vnode_id)
 {
         /* Lab 5 TODO Begin */
-        struct rb_node *node = fs_vnode_list->root_node;
-        while (node) {
-                struct fs_vnode *n = rb_entry(node, struct fs_vnode, node);
-                if (n->vnode_id == vnode_id) {
-                        return n;
-                } else if (n->vnode_id < vnode_id) {
-                        node = node->right_child;
-                } else {
-                        node = node->left_child;
-                }
-        }
-        return NULL;
+        // struct rb_node *node = fs_vnode_list->root_node;
+        // while (node) {
+        //         struct fs_vnode *n = rb_entry(node, struct fs_vnode, node);
+        //         if (n->vnode_id == vnode_id) {
+        //                 return n;
+        //         } else if (n->vnode_id < vnode_id) {
+        //                 node = node->right_child;
+        //         } else {
+        //                 node = node->left_child;
+        //         }
+        // }
+        // return NULL;
+        struct rb_node *node =
+                rb_search(fs_vnode_list, &vnode_id, comp_vnode_key);
+        if (node == NULL)
+                return NULL;
+        return rb_entry(node, struct fs_vnode, node);
+
         /* Lab 5 TODO End */
 }
 
@@ -139,8 +184,11 @@ struct fs_vnode *get_fs_vnode_by_id(ino_t vnode_id)
 int inc_ref_fs_vnode(void *n)
 {
         /* Lab 5 TODO Begin */
-        struct fs_vnode *node = (struct fs_vnode *)n;
-        node->refcnt++;
+        // struct fs_vnode *node = (struct fs_vnode *)n;
+        // node->refcnt++;
+        ((struct fs_vnode *)n)->refcnt++;
+        return 0;
+
         /* Lab 5 TODO End */
         return 0;
 }
@@ -149,11 +197,31 @@ int inc_ref_fs_vnode(void *n)
 int dec_ref_fs_vnode(void *node)
 {
         /* Lab 5 TODO Begin */
+        // struct fs_vnode *n = (struct fs_vnode *)node;
+        // n->refcnt--;
+        // if (n->refcnt == 0) {
+        //         pop_free_fs_vnode(n);
+        // }
+        int ret;
         struct fs_vnode *n = (struct fs_vnode *)node;
+
         n->refcnt--;
+        assert(n->refcnt >= 0);
+
         if (n->refcnt == 0) {
+                ret = server_ops.close(
+                        n->private, (n->type == FS_NODE_DIR), true);
+                if (ret) {
+                        printf("Warning: close failed when deref vnode: %d\n",
+                               ret);
+                        return ret;
+                }
+
                 pop_free_fs_vnode(n);
         }
+
+        return 0;
+
         /* Lab 5 TODO End */
 
         return 0;
